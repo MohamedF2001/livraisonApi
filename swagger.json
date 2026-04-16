@@ -1,0 +1,2419 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "ILLICO DELIVERY API",
+    "version": "1.0.0",
+    "description": "Plateforme de livraison express & points de collecte — Cotonou & Abomey-Calavi\n\n## 🎯 Fonctionnalités\n- Authentification multi-rôles (Admin, Client, Livreur, Point ILLICO)\n- Gestion des livraisons en temps réel\n- Points de collecte avec stockage temporaire\n- Calcul tarifaire dynamique\n- Paiements & commissions\n- Notifications push\n\n## 🔐 Authentification\nToutes les routes protégées nécessitent un token JWT dans le header :\n```\nAuthorization: Bearer <votre_token_jwt>\n```\n\n## 🌍 Base URL\n- Development: `http://localhost:3000/api`\n- Production: `https://illico-delivery.vercel.app/api`"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000/api",
+      "description": "Development (Local)"
+    },
+    {
+      "url": "https://illico-delivery.vercel.app/api",
+      "description": "Production (Vercel)"
+    }
+  ],
+  "tags": [
+    { "name": "🔐 Auth", "description": "Authentification & gestion de profil multi-rôles" },
+    { "name": "📦 Livraisons", "description": "Création, suivi et gestion des livraisons" },
+    { "name": "🚴 Livreurs", "description": "Gestion des livreurs, missions et positions" },
+    { "name": "🚗 Véhicules", "description": "Types de véhicules et paramètres tarifaires" },
+    { "name": "🗺️ Zones", "description": "Zones géographiques de livraison" },
+    { "name": "🏪 Points ILLICO", "description": "Points de collecte et gestion des colis" },
+    { "name": "📦 Colis", "description": "Gestion des colis en point de collecte" },
+    { "name": "💰 Tarifs", "description": "Grilles tarifaires et estimation de prix" },
+    { "name": "💳 Transactions", "description": "Historique des paiements et commissions" },
+    { "name": "🎫 Forfaits", "description": "Abonnements clients professionnels" },
+    { "name": "🔔 Notifications", "description": "Alertes et messages utilisateurs" },
+    { "name": "👨‍💼 Admin", "description": "Endpoints réservés aux administrateurs" }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Token JWT obtenu après connexion. Format: `Bearer <token>`"
+      }
+    },
+    "schemas": {
+      "User": {
+        "type": "object",
+        "description": "Utilisateur (4 rôles possibles: Admin, Client, Livreur, PointIllico)",
+        "properties": {
+          "_id": { "type": "string", "example": "65f2a1b2c3d4e5f6a7b8c9d0" },
+          "nom": { "type": "string", "example": "Koffi Mensah" },
+          "telephone": { "type": "string", "example": "+22997123456" },
+          "email": { "type": "string", "example": "admin@illicodelivery.bj", "nullable": true },
+          "role": { "type": "string", "enum": ["Admin", "Client", "Livreur", "PointIllico"], "example": "Client" },
+          "adresse": { "type": "string", "example": "Cotonou, Haie Vive, Rue 123", "nullable": true },
+          "typeClient": { "type": "string", "enum": ["standard", "professionnel"], "example": "professionnel", "nullable": true },
+          "soldeIllico": { "type": "number", "example": 15000, "nullable": true },
+          "forfaitActif": { "type": "string", "nullable": true, "example": "65f2a1b2c3d4e5f6a7b8c9d1" },
+          "vehicule": { "type": "object", "nullable": true, "example": { "_id": "65f2a1b2c3d4e5f6a7b8c9d2", "type": "moto", "tarifBase": 500 } },
+          "statut": { "type": "string", "enum": ["en_ligne", "hors_ligne", "en_mission"], "example": "en_ligne", "nullable": true },
+          "scoreNote": { "type": "number", "minimum": 0, "maximum": 5, "example": 4.8, "nullable": true },
+          "cashCollecte": { "type": "number", "example": 25000, "nullable": true },
+          "cashReverse": { "type": "number", "example": 10000, "nullable": true },
+          "valide": { "type": "boolean", "example": true, "nullable": true },
+          "actif": { "type": "boolean", "example": true, "nullable": true },
+          "commissionTotal": { "type": "number", "example": 5000, "nullable": true },
+          "location": {
+            "type": "object",
+            "properties": {
+              "type": { "type": "string", "example": "Point" },
+              "coordinates": { "type": "array", "items": { "type": "number" }, "example": [2.4394, 6.3654] }
+            }
+          }
+        }
+      },
+      "Livraison": {
+        "type": "object",
+        "properties": {
+          "_id": { "type": "string", "example": "65f2a1b2c3d4e5f6a7b8c9e0" },
+          "client": { "$ref": "#/components/schemas/User" },
+          "livreur": { "$ref": "#/components/schemas/User", "nullable": true },
+          "pointDepart": {
+            "type": "object",
+            "properties": {
+              "adresse": { "type": "string", "example": "Cotonou, Haie Vive" },
+              "coordinates": { "type": "array", "items": { "type": "number" }, "example": [2.4394, 6.3654] }
+            }
+          },
+          "pointArrivee": {
+            "type": "object",
+            "properties": {
+              "adresse": { "type": "string", "example": "Abomey-Calavi, Godomey" },
+              "coordinates": { "type": "array", "items": { "type": "number" }, "example": [2.3558, 6.4478] }
+            }
+          },
+          "vehicule": { "type": "object", "properties": { "_id": { "type": "string" }, "type": { "type": "string" }, "tarifBase": { "type": "number" } } },
+          "mode": { "type": "string", "enum": ["express", "point_illico"], "example": "express" },
+          "pointIllico": { "$ref": "#/components/schemas/User", "nullable": true },
+          "statut": { "type": "string", "enum": ["en_attente", "affecté", "arrivé_pickup", "colis_récupéré", "déposé_en_point", "livré", "échoué", "annulé"], "example": "en_attente" },
+          "prixEstime": { "type": "number", "example": 2500 },
+          "prixFinal": { "type": "number", "nullable": true, "example": 2500 },
+          "modePaiement": { "type": "string", "enum": ["cash", "mobile_money", "credit_illico"], "example": "cash" },
+          "otpLivraison": { "type": "string", "example": "123456", "writeOnly": true },
+          "otpRetrait": { "type": "string", "example": "789012", "writeOnly": true },
+          "otpValidé": { "type": "boolean", "example": false },
+          "preuveLivraisonUrl": { "type": "string", "example": "https://res.cloudinary.com/.../proof.jpg", "nullable": true },
+          "noteLivreur": { "type": "number", "minimum": 1, "maximum": 5, "nullable": true },
+          "urgent": { "type": "boolean", "example": false },
+          "nuit": { "type": "boolean", "example": false },
+          "poids": { "type": "number", "example": 2.5 },
+          "dateCreation": { "type": "string", "format": "date-time", "example": "2026-04-15T10:30:00Z" },
+          "dateLivraison": { "type": "string", "format": "date-time", "nullable": true }
+        }
+      },
+      "Colis": {
+        "type": "object",
+        "properties": {
+          "_id": { "type": "string", "example": "65f2a1b2c3d4e5f6a7b8c9f0" },
+          "reference": { "type": "string", "example": "COL-K9X2M-4P7Q" },
+          "livraison": { "$ref": "#/components/schemas/Livraison" },
+          "pointIllico": { "$ref": "#/components/schemas/User" },
+          "statut": { "type": "string", "enum": ["en_attente", "receptionné", "retiré", "retourné"], "example": "receptionné" },
+          "dateDepot": { "type": "string", "format": "date-time", "example": "2026-04-15T14:00:00Z" },
+          "dateLimiteGratuite": { "type": "string", "format": "date-time", "example": "2026-04-17T14:00:00Z" },
+          "dateRetrait": { "type": "string", "format": "date-time", "nullable": true },
+          "fraisStockage": { "type": "number", "example": 0 },
+          "fraisStockageActuel": { "type": "number", "example": 400, "description": "Calculé à la volée si retard" },
+          "otpRetrait": { "type": "string", "example": "456789", "writeOnly": true },
+          "signatureUrl": { "type": "string", "nullable": true }
+        }
+      },
+      "Tarif": {
+        "type": "object",
+        "properties": {
+          "_id": { "type": "string", "example": "65f2a1b2c3d4e5f6a7b8c9a0" },
+          "vehicule": { "type": "object", "properties": { "_id": { "type": "string" }, "type": { "type": "string" } } },
+          "zone": { "type": "object", "properties": { "_id": { "type": "string" }, "nom": { "type": "string" }, "supplement": { "type": "number" } } },
+          "prixBase": { "type": "number", "example": 500 },
+          "coutKm": { "type": "number", "example": 150 },
+          "supplementUrgent": { "type": "number", "example": 1000 },
+          "supplementNuit": { "type": "number", "example": 500 },
+          "supplementPoids": { "type": "number", "example": 100 },
+          "remisePointIllico": { "type": "number", "example": 10, "description": "Pourcentage de remise" },
+          "actif": { "type": "boolean", "example": true }
+        }
+      },
+      "Vehicule": {
+        "type": "object",
+        "properties": {
+          "_id": { "type": "string", "example": "65f2a1b2c3d4e5f6a7b8c9b0" },
+          "type": { "type": "string", "enum": ["velo", "moto", "tricycle", "voiture", "camionnette"], "example": "moto" },
+          "tarifBase": { "type": "number", "example": 500 },
+          "coutParKm": { "type": "number", "example": 150 },
+          "commission": { "type": "number", "example": 20, "description": "Pourcentage de commission livreur" },
+          "description": { "type": "string", "example": "Idéal pour livraisons urbaines rapides" },
+          "actif": { "type": "boolean", "example": true }
+        }
+      },
+      "Zone": {
+        "type": "object",
+        "properties": {
+          "_id": { "type": "string", "example": "65f2a1b2c3d4e5f6a7b8c9c0" },
+          "nom": { "type": "string", "example": "Cotonou Centre" },
+          "description": { "type": "string", "example": "Zone urbaine dense" },
+          "supplement": { "type": "number", "example": 200 },
+          "actif": { "type": "boolean", "example": true }
+        }
+      },
+      "Transaction": {
+        "type": "object",
+        "properties": {
+          "_id": { "type": "string", "example": "65f2a1b2c3d4e5f6a7b8c9d5" },
+          "livraison": { "$ref": "#/components/schemas/Livraison", "nullable": true },
+          "livreur": { "$ref": "#/components/schemas/User", "nullable": true },
+          "client": { "$ref": "#/components/schemas/User" },
+          "type": { "type": "string", "enum": ["paiement", "commission_livreur", "commission_point", "stockage", "remboursement"], "example": "commission_livreur" },
+          "montant": { "type": "number", "example": 500 },
+          "modePaiement": { "type": "string", "enum": ["cash", "mobile_money", "credit_illico"], "example": "cash" },
+          "statut": { "type": "string", "enum": ["en_attente", "validé", "échoué"], "example": "validé" },
+          "dateTransaction": { "type": "string", "format": "date-time", "example": "2026-04-15T15:30:00Z" },
+          "description": { "type": "string", "example": "Commission livraison #c9e0" }
+        }
+      },
+      "Forfait": {
+        "type": "object",
+        "properties": {
+          "_id": { "type": "string", "example": "65f2a1b2c3d4e5f6a7b8c9e5" },
+          "nom": { "type": "string", "example": "Pro Monthly" },
+          "description": { "type": "string", "example": "50 livraisons/mois avec 15% de remise" },
+          "prix": { "type": "number", "example": 25000 },
+          "dureeJours": { "type": "number", "example": 30 },
+          "livraisonsIncluses": { "type": "number", "example": 50 },
+          "remise": { "type": "number", "example": 15, "description": "Pourcentage de remise sur les livraisons" },
+          "actif": { "type": "boolean", "example": true }
+        }
+      },
+      "Notification": {
+        "type": "object",
+        "properties": {
+          "_id": { "type": "string", "example": "65f2a1b2c3d4e5f6a7b8c9f5" },
+          "destinataire": { "$ref": "#/components/schemas/User" },
+          "type": { "type": "string", "enum": ["livraison", "alerte", "paiement", "info"], "example": "livraison" },
+          "message": { "type": "string", "example": "Votre colis #COL-K9X2M-4P7Q est prêt au retrait" },
+          "lu": { "type": "boolean", "example": false },
+          "dateCreation": { "type": "string", "format": "date-time", "example": "2026-04-15T16:00:00Z" },
+          "lien": { "type": "string", "nullable": true, "example": "/colis/65f2a1b2c3d4e5f6a7b8c9f0" }
+        }
+      },
+      "AuthResponse": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "message": { "type": "string", "example": "Connexion réussie." },
+          "data": {
+            "type": "object",
+            "properties": {
+              "token": { "type": "string", "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." },
+              "user": { "$ref": "#/components/schemas/User" }
+            }
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean", "example": false },
+          "message": { "type": "string", "example": "Identifiants invalides." },
+          "errors": {
+            "type": "array",
+            "items": { "type": "string" },
+            "example": ["Email requis", "Mot de passe trop court"],
+            "nullable": true
+          }
+        }
+      },
+      "OTPRequest": {
+        "type": "object",
+        "required": ["otp"],
+        "properties": {
+          "otp": { "type": "string", "pattern": "^[0-9]{6}$", "example": "123456", "description": "Code OTP à 6 chiffres" }
+        }
+      },
+      "PrixEstimation": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "message": { "type": "string", "example": "Estimation calculée." },
+          "data": {
+            "type": "object",
+            "properties": {
+              "distance": { "type": "string", "example": "4.25" },
+              "prixEstime": { "type": "number", "example": 2500 },
+              "details": {
+                "type": "object",
+                "properties": {
+                  "tarifBase": { "type": "number", "example": 500 },
+                  "coutKm": { "type": "number", "example": 150 },
+                  "supplementZone": { "type": "number", "example": 200 },
+                  "supplementUrgent": { "type": "number", "example": 0 },
+                  "supplementNuit": { "type": "number", "example": 0 },
+                  "supplementPoids": { "type": "number", "example": 150 },
+                  "remise": { "type": "number", "example": 0 }
+                }
+              }
+            }
+          }
+        }
+      },
+      "LivraisonCreateRequest": {
+        "type": "object",
+        "required": ["pointDepart", "pointArrivee", "vehicule", "mode"],
+        "properties": {
+          "pointDepart": {
+            "type": "object",
+            "required": ["adresse", "coordinates"],
+            "properties": {
+              "adresse": { "type": "string", "example": "Cotonou, Haie Vive, Rue 123" },
+              "coordinates": { "type": "array", "items": { "type": "number" }, "example": [2.4394, 6.3654], "description": "[longitude, latitude]" }
+            }
+          },
+          "pointArrivee": {
+            "type": "object",
+            "required": ["adresse", "coordinates"],
+            "properties": {
+              "adresse": { "type": "string", "example": "Abomey-Calavi, Godomey, Carrefour" },
+              "coordinates": { "type": "array", "items": { "type": "number" }, "example": [2.3558, 6.4478] }
+            }
+          },
+          "vehicule": { "type": "string", "example": "65f2a1b2c3d4e5f6a7b8c9b0", "description": "ID du véhicule (Vehicule._id)" },
+          "mode": { "type": "string", "enum": ["express", "point_illico"], "example": "express" },
+          "pointIllico": { "type": "string", "nullable": true, "example": "65f2a1b2c3d4e5f6a7b8c9d3", "description": "ID du point ILLICO (si mode=point_illico)" },
+          "urgent": { "type": "boolean", "example": false },
+          "nuit": { "type": "boolean", "example": false },
+          "poids": { "type": "number", "example": 2.5, "description": "Poids du colis en kg" },
+          "modePaiement": { "type": "string", "enum": ["cash", "mobile_money", "credit_illico"], "example": "cash" }
+        }
+      },
+      "LivreurPositionRequest": {
+        "type": "object",
+        "required": ["coordinates"],
+        "properties": {
+          "coordinates": {
+            "type": "array",
+            "items": { "type": "number" },
+            "example": [2.4394, 6.3654],
+            "description": "[longitude, latitude] de la position actuelle du livreur",
+            "minItems": 2,
+            "maxItems": 2
+          }
+        }
+      },
+      "StatutUpdateRequest": {
+        "type": "object",
+        "required": ["statut"],
+        "properties": {
+          "statut": {
+            "type": "string",
+            "enum": ["en_attente", "affecté", "arrivé_pickup", "colis_récupéré", "déposé_en_point", "livré", "échoué", "annulé"],
+            "example": "livré"
+          }
+        }
+      }
+    },
+    "parameters": {
+      "id": {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string" },
+        "description": "ID MongoDB de la ressource",
+        "example": "65f2a1b2c3d4e5f6a7b8c9d0"
+      }
+    },
+    "responses": {
+      "Unauthorized": {
+        "description": "Non authentifié",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+            "example": { "success": false, "message": "Token invalide ou expiré." }
+          }
+        }
+      },
+      "Forbidden": {
+        "description": "Accès refusé (rôle insuffisant)",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+            "example": { "success": false, "message": "Accès réservé aux administrateurs." }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "Ressource non trouvée",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+            "example": { "success": false, "message": "Livraison non trouvée." }
+          }
+        }
+      },
+      "BadRequest": {
+        "description": "Requête invalide",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+            "example": { "success": false, "message": "Champs requis manquants.", "errors": ["telephone requis"] }
+          }
+        }
+      }
+    }
+  },
+  "security": [{ "bearerAuth": [] }],
+  "paths": {
+    "/auth/admin/register": {
+      "post": {
+        "tags": ["🔐 Auth"],
+        "summary": "Inscription administrateur",
+        "description": "Crée un nouveau compte administrateur. Réservé à l'initialisation du système.",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["nom", "email", "motDePasse", "telephone"],
+                "properties": {
+                  "nom": { "type": "string", "example": "Admin Principal" },
+                  "email": { "type": "string", "format": "email", "example": "admin@illicodelivery.bj" },
+                  "motDePasse": { "type": "string", "minLength": 6, "example": "Admin123!" },
+                  "telephone": { "type": "string", "example": "+22997000001" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Admin créé avec succès",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/AuthResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" }
+        }
+      }
+    },
+    "/auth/admin/login": {
+      "post": {
+        "tags": ["🔐 Auth"],
+        "summary": "Connexion administrateur",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email", "motDePasse"],
+                "properties": {
+                  "email": { "type": "string", "format": "email", "example": "admin@illicodelivery.bj" },
+                  "motDePasse": { "type": "string", "example": "Admin123!" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Connexion réussie",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/AuthResponse" },
+                "example": {
+                  "success": true,
+                  "message": "Connexion réussie.",
+                  "data": {
+                    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2NWYyYTFiMmMzZDRlNWY2YTdiOGM5ZDAiLCJyb2xlIjoiQWRtaW4iLCJpYXQiOjE3MTMxODcyMDB9.xYz...",
+                    "user": {
+                      "_id": "65f2a1b2c3d4e5f6a7b8c9d0",
+                      "nom": "Admin Principal",
+                      "email": "admin@illicodelivery.bj",
+                      "telephone": "+22997000001",
+                      "role": "Admin"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Identifiants invalides",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": { "success": false, "message": "Identifiants invalides." }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/client/register": {
+      "post": {
+        "tags": ["🔐 Auth"],
+        "summary": "Inscription client (avec OTP)",
+        "description": "Processus en 2 étapes:\n1. `?action=init` → Envoi OTP au téléphone\n2. Sans params → Validation OTP + création compte",
+        "security": [],
+        "parameters": [
+          {
+            "name": "action",
+            "in": "query",
+            "schema": { "type": "string", "enum": ["init"] },
+            "description": "init = demander envoi OTP"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "telephone": { "type": "string", "example": "+22997123456" },
+                  "codePin": { "type": "string", "pattern": "^[0-9]{4,6}$", "example": "1234", "description": "4-6 chiffres" },
+                  "nom": { "type": "string", "example": "Koffi Mensah" },
+                  "adresse": { "type": "string", "example": "Cotonou, Haie Vive" },
+                  "typeClient": { "type": "string", "enum": ["standard", "professionnel"], "example": "standard" },
+                  "otp": { "type": "string", "pattern": "^[0-9]{6}$", "example": "123456", "description": "Requis pour étape 2" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OTP envoyé ou compte créé",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "otpSent": {
+                    "summary": "Étape 1: OTP envoyé",
+                    "value": {
+                      "success": true,
+                      "message": "OTP envoyé. Veuillez le saisir pour finaliser.",
+                      "data": { "telephone": "+22997123456", "otpExpires": 1713187500000 }
+                    }
+                  },
+                  "accountCreated": {
+                    "summary": "Étape 2: Compte créé",
+                    "value": {
+                      "success": true,
+                      "message": "Compte client créé avec succès.",
+                      "data": { "id": "65f2a1b2c3d4e5f6a7b8c9d1", "nom": "Koffi Mensah", "telephone": "+22997123456", "role": "Client" }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" }
+        }
+      }
+    },
+    "/auth/client/login": {
+      "post": {
+        "tags": ["🔐 Auth"],
+        "summary": "Connexion client",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["telephone", "codePin"],
+                "properties": {
+                  "telephone": { "type": "string", "example": "+22997123456" },
+                  "codePin": { "type": "string", "pattern": "^[0-9]{4,6}$", "example": "1234" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Connexion réussie",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/AuthResponse" }
+              }
+            }
+          },
+          "401": {
+            "description": "Identifiants invalides",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/livreur/register": {
+      "post": {
+        "tags": ["🔐 Auth"],
+        "summary": "Inscription livreur",
+        "description": "Le compte reste en attente de validation par un administrateur (valide=false)",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["nom", "telephone", "motDePasse", "vehicule"],
+                "properties": {
+                  "nom": { "type": "string", "example": "Jean Dossou" },
+                  "telephone": { "type": "string", "example": "+22997234567" },
+                  "motDePasse": { "type": "string", "minLength": 6, "example": "Livreur123!" },
+                  "vehicule": { "type": "string", "example": "65f2a1b2c3d4e5f6a7b8c9b0", "description": "ID du véhicule (Vehicule._id)" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Inscription réussie, en attente de validation",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": true,
+                  "message": "Inscription réussie. En attente de validation par l'administrateur.",
+                  "data": { "id": "65f2a1b2c3d4e5f6a7b8c9d2", "nom": "Jean Dossou", "telephone": "+22997234567", "role": "Livreur", "valide": false }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" }
+        }
+      }
+    },
+    "/auth/livreur/login": {
+      "post": {
+        "tags": ["🔐 Auth"],
+        "summary": "Connexion livreur",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["telephone", "motDePasse"],
+                "properties": {
+                  "telephone": { "type": "string", "example": "+22997234567" },
+                  "motDePasse": { "type": "string", "example": "Livreur123!" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Connexion réussie",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/AuthResponse" }
+              }
+            }
+          },
+          "401": { "description": "Identifiants invalides ou compte non validé" }
+        }
+      }
+    },
+    "/auth/point/register": {
+      "post": {
+        "tags": ["🔐 Auth"],
+        "summary": "Inscription Point ILLICO",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["nom", "telephone", "motDePasse", "adresse"],
+                "properties": {
+                  "nom": { "type": "string", "example": "Point Haie Vive" },
+                  "telephone": { "type": "string", "example": "+22997345678" },
+                  "motDePasse": { "type": "string", "minLength": 6, "example": "Point123!" },
+                  "adresse": { "type": "string", "example": "Cotonou, Haie Vive, Carrefour" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Inscription réussie, en attente d'activation",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": true,
+                  "message": "Inscription réussie. En attente d'activation par l'administrateur.",
+                  "data": { "id": "65f2a1b2c3d4e5f6a7b8c9d3", "nom": "Point Haie Vive", "telephone": "+22997345678", "role": "PointIllico", "actif": false }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/point/login": {
+      "post": {
+        "tags": ["🔐 Auth"],
+        "summary": "Connexion Point ILLICO",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["telephone", "motDePasse"],
+                "properties": {
+                  "telephone": { "type": "string", "example": "+22997345678" },
+                  "motDePasse": { "type": "string", "example": "Point123!" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Connexion réussie",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/AuthResponse" }
+              }
+            }
+          },
+          "403": { "description": "Point ILLICO désactivé" }
+        }
+      }
+    },
+    "/auth/profile": {
+      "get": {
+        "tags": ["🔐 Auth"],
+        "summary": "Récupérer mon profil",
+        "description": "Retourne les informations du profil de l'utilisateur connecté. Les champs sensibles (motDePasse, codePin) sont exclus.",
+        "responses": {
+          "200": {
+            "description": "Profil récupéré",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "message": { "type": "string", "example": "Profil récupéré." },
+                    "data": { "$ref": "#/components/schemas/User" }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/auth/profile/photo": {
+      "post": {
+        "tags": ["🔐 Auth"],
+        "summary": "Uploader photo de profil (livreur)",
+        "description": "Réservé aux livreurs. Upload via multipart/form-data. L'ancienne photo est automatiquement supprimée de Cloudinary.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "photo": { "type": "string", "format": "binary", "description": "Fichier image (JPG/PNG, max 10MB)" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Photo mise à jour",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": true,
+                  "message": "Photo de profil mise à jour.",
+                  "data": { "photoProfil": "https://res.cloudinary.com/.../livreur_65f2a1b2c3d4e5f6a7b8c9d2.jpg" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/livraisons/estimation-prix": {
+      "post": {
+        "tags": ["📦 Livraisons", "💰 Tarifs"],
+        "summary": "Estimer le prix d'une livraison",
+        "description": "Calcule le prix estimé sans créer de livraison. Utilisé pour afficher le prix avant confirmation.",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["vehicule", "coordDepart", "coordArrivee"],
+                "properties": {
+                  "vehicule": { "type": "string", "example": "65f2a1b2c3d4e5f6a7b8c9b0" },
+                  "coordDepart": { "type": "array", "items": { "type": "number" }, "example": [2.4394, 6.3654] },
+                  "coordArrivee": { "type": "array", "items": { "type": "number" }, "example": [2.3558, 6.4478] },
+                  "mode": { "type": "string", "enum": ["express", "point_illico"], "example": "express" },
+                  "urgent": { "type": "boolean", "example": false },
+                  "nuit": { "type": "boolean", "example": false },
+                  "poids": { "type": "number", "example": 2.5 },
+                  "pointIllico": { "type": "string", "nullable": true }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Estimation calculée",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PrixEstimation" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/livraisons": {
+      "post": {
+        "tags": ["📦 Livraisons"],
+        "summary": "Créer une nouvelle livraison",
+        "description": "Réservé aux clients et admins. Crée une livraison et déclenche le dispatch automatique vers un livreur disponible.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/LivraisonCreateRequest" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Livraison créée",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": true,
+                  "message": "Livraison créée avec succès.",
+                  "data": {
+                    "_id": "65f2a1b2c3d4e5f6a7b8c9e0",
+                    "client": { "_id": "65f2a1b2c3d4e5f6a7b8c9d1", "nom": "Koffi Mensah", "telephone": "+22997123456" },
+                    "statut": "en_attente",
+                    "prixEstime": 2500,
+                    "otpLivraison": "123***"
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      },
+      "get": {
+        "tags": ["📦 Livraisons"],
+        "summary": "Lister mes livraisons",
+        "description": "Retourne les livraisons filtrées selon le rôle:\n- Client: ses propres livraisons\n- Livreur: ses missions\n- Admin: toutes les livraisons",
+        "parameters": [
+          { "name": "statut", "in": "query", "schema": { "type": "string", "enum": ["en_attente", "affecté", "livré", "annulé"] } },
+          { "name": "mode", "in": "query", "schema": { "type": "string", "enum": ["express", "point_illico"] } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "example": 20 } },
+          { "name": "page", "in": "query", "schema": { "type": "integer", "example": 1 } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Liste des livraisons",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "message": { "type": "string" },
+                    "data": { "type": "array", "items": { "$ref": "#/components/schemas/Livraison" } }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/livraisons/{id}": {
+      "get": {
+        "tags": ["📦 Livraisons"],
+        "summary": "Détail d'une livraison",
+        "parameters": [
+          { "$ref": "#/components/parameters/id" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Livraison récupérée",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "message": { "type": "string" },
+                    "data": { "$ref": "#/components/schemas/Livraison" }
+                  }
+                }
+              }
+            }
+          },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      },
+      "delete": {
+        "tags": ["📦 Livraisons"],
+        "summary": "Annuler une livraison",
+        "description": "Seul le client peut annuler sa livraison, et uniquement si le statut est 'en_attente'.",
+        "parameters": [
+          { "$ref": "#/components/parameters/id" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Livraison annulée",
+            "content": {
+              "application/json": {
+                "example": { "success": true, "message": "Livraison annulée avec succès." }
+              }
+            }
+          },
+          "400": { "description": "Impossible d'annuler (statut non éligible)" }
+        }
+      }
+    },
+    "/livraisons/{id}/statut": {
+      "put": {
+        "tags": ["📦 Livraisons"],
+        "summary": "Mettre à jour le statut d'une livraison",
+        "description": "Workflow des statuts:\n```\nen_attente → affecté → arrivé_pickup → colis_récupéré → livré\n                          ↓\n                    déposé_en_point → retiré\n```",
+        "parameters": [
+          { "$ref": "#/components/parameters/id" }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/StatutUpdateRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Statut mis à jour",
+            "content": {
+              "application/json": {
+                "example": { "success": true, "message": "Statut mis à jour.", "data": { "statut": "livré" } }
+              }
+            }
+          },
+          "400": { "description": "Transition de statut invalide" }
+        }
+      }
+    },
+    "/livraisons/{id}/affecter": {
+      "put": {
+        "tags": ["📦 Livraisons", "👨‍💼 Admin"],
+        "summary": "Affecter manuellement un livreur",
+        "description": "Réservé aux administrateurs. Permet d'assigner un livreur spécifique à une livraison en attente.",
+        "parameters": [
+          { "$ref": "#/components/parameters/id" }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["livreurId"],
+                "properties": {
+                  "livreurId": { "type": "string", "example": "65f2a1b2c3d4e5f6a7b8c9d2" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Livreur affecté",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": true,
+                  "message": "Livreur affecté avec succès.",
+                  "data": { "livraison": { "_id": "65f2a1b2c3d4e5f6a7b8c9e0", "livreur": { "nom": "Jean Dossou" }, "statut": "affecté" } }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/livraisons/{id}/valider-otp": {
+      "post": {
+        "tags": ["📦 Livraisons"],
+        "summary": "Valider un code OTP",
+        "description": "Valide l'OTP pour:\n- Pickup: livreur valide otpLivraison\n- Retrait: client/point valide otpRetrait\nMet à jour automatiquement le statut selon le rôle.",
+        "parameters": [
+          { "$ref": "#/components/parameters/id" }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/OTPRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OTP validé",
+            "content": {
+              "application/json": {
+                "example": { "success": true, "message": "OTP validé avec succès.", "data": { "statut": "colis_récupéré", "otpValidé": true } }
+              }
+            }
+          },
+          "400": { "description": "OTP invalide" }
+        }
+      }
+    },
+    "/livraisons/{id}/preuve": {
+      "post": {
+        "tags": ["📦 Livraisons"],
+        "summary": "Uploader une preuve de livraison",
+        "description": "Réservé au livreur assigné. Upload d'une photo de preuve (Cloudinary). Finalise automatiquement la livraison (statut → livré) et calcule la commission.",
+        "parameters": [
+          { "$ref": "#/components/parameters/id" }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "preuve": { "type": "string", "format": "binary", "description": "Photo de preuve (JPG/PNG, max 10MB)" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Preuve enregistrée",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": true,
+                  "message": "Preuve enregistrée. Livraison finalisée.",
+                  "data": {
+                    "preuveLivraisonUrl": "https://res.cloudinary.com/.../proof_65f2a1b2c3d4e5f6a7b8c9e0.jpg",
+                    "statut": "livré",
+                    "commission": 500
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/livreurs": {
+      "get": {
+        "tags": ["🚴 Livreurs", "👨‍💼 Admin"],
+        "summary": "Lister les livreurs",
+        "description": "Réservé aux administrateurs. Filtres disponibles: statut, valide, vehicule.",
+        "parameters": [
+          { "name": "statut", "in": "query", "schema": { "type": "string", "enum": ["en_ligne", "hors_ligne", "en_mission"] } },
+          { "name": "valide", "in": "query", "schema": { "type": "boolean" } },
+          { "name": "vehicule", "in": "query", "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Liste des livreurs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "message": { "type": "string" },
+                    "data": { "type": "array", "items": { "$ref": "#/components/schemas/User" } }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/livreurs/{id}/valider": {
+      "put": {
+        "tags": ["🚴 Livreurs", "👨‍💼 Admin"],
+        "summary": "Valider/suspendre un livreur",
+        "parameters": [
+          { "$ref": "#/components/parameters/id" }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["valide"],
+                "properties": {
+                  "valide": { "type": "boolean", "example": true, "description": "true = valider, false = suspendre" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Statut mis à jour",
+            "content": {
+              "application/json": {
+                "example": { "success": true, "message": "Livreur validé avec succès.", "data": { "id": "65f2a1b2c3d4e5f6a7b8c9d2", "valide": true } }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/livreurs/statut": {
+      "put": {
+        "tags": ["🚴 Livreurs"],
+        "summary": "Mettre à jour mon statut (livreur)",
+        "description": "Permet au livreur de passer en ligne/hors ligne. Blocage automatique si (cashCollecte - cashReverse) > seuil.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["statut"],
+                "properties": {
+                  "statut": { "type": "string", "enum": ["en_ligne", "hors_ligne"], "example": "en_ligne" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Statut mis à jour",
+            "content": {
+              "application/json": {
+                "example": { "success": true, "message": "Statut mis à jour.", "data": { "statut": "en_ligne" } }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/livreurs/position": {
+      "post": {
+        "tags": ["🚴 Livreurs"],
+        "summary": "Mettre à jour ma position GPS",
+        "description": "Envoie la position actuelle du livreur. Broadcast en temps réel aux clients suivant la livraison via Socket.io.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/LivreurPositionRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Position mise à jour",
+            "content": {
+              "application/json": {
+                "example": { "success": true, "message": "Position mise à jour." }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/livreurs/missions": {
+      "get": {
+        "tags": ["🚴 Livreurs"],
+        "summary": "Mes missions en cours",
+        "description": "Retourne les livraisons actives du livreur connecté (statut: affecté, arrivé_pickup, colis_récupéré, déposé_en_point).",
+        "responses": {
+          "200": {
+            "description": "Missions récupérées",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "message": { "type": "string" },
+                    "data": { "type": "array", "items": { "$ref": "#/components/schemas/Livraison" } }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/livreurs/{id}/reverse-cash": {
+      "put": {
+        "tags": ["🚴 Livreurs", "👨‍💼 Admin"],
+        "summary": "Enregistrer un reversement cash",
+        "description": "Permet à l'admin d'enregistrer qu'un livreur a reversé une partie de son cash collecté. Met à jour cashReverse et crée une transaction.",
+        "parameters": [
+          { "$ref": "#/components/parameters/id" }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["montant"],
+                "properties": {
+                  "montant": { "type": "number", "example": 15000, "description": "Montant reversé en FCFA" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Reversement enregistré",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": true,
+                  "message": "Reversement enregistré.",
+                  "data": { "cashCollecte": 25000, "cashReverse": 25000, "solde": 0 }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/livreurs/stats": {
+      "get": {
+        "tags": ["🚴 Livreurs"],
+        "summary": "Mes statistiques (livreur)",
+        "responses": {
+          "200": {
+            "description": "Statistiques récupérées",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": true,
+                  "message": "Statistiques récupérées.",
+                  "data": {
+                    "totalLivraisons": 42,
+                    "livraisonsLivrees": 38,
+                    "tauxReussite": 90,
+                    "revenuTotal": 18500,
+                    "noteMoyenne": 4.8
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/vehicules": {
+  "get": {
+    "tags": ["🚗 Véhicules"],
+    "summary": "Lister les véhicules disponibles",
+    "security": [],
+    "parameters": [
+      { "name": "type", "in": "query", "schema": { "type": "string", "enum": ["velo", "moto", "tricycle", "voiture", "camionnette"] } },
+      { "name": "actif", "in": "query", "schema": { "type": "boolean" } }
+    ],
+    "responses": {
+      "200": {
+        "description": "Liste des véhicules",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "success": { "type": "boolean" },
+                "data": { "type": "array", "items": { "$ref": "#/components/schemas/Vehicule" } }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "post": {
+    "tags": ["🚗 Véhicules", "👨‍💼 Admin"],
+    "summary": "Créer un nouveau véhicule",
+    "requestBody": {
+      "required": true,
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "object",
+            "required": ["type", "tarifBase", "coutParKm", "commission"],
+            "properties": {
+              "type": { "type": "string", "enum": ["velo", "moto", "tricycle", "voiture", "camionnette"], "example": "moto" },
+              "tarifBase": { "type": "number", "example": 500, "minimum": 0 },
+              "coutParKm": { "type": "number", "example": 150, "minimum": 0 },
+              "commission": { "type": "number", "example": 20, "minimum": 0, "maximum": 100 },
+              "description": { "type": "string", "example": "Idéal pour livraisons urbaines" }
+            }
+          }
+        }
+      }
+    },
+    "responses": {
+      "201": {
+        "description": "Véhicule créé",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "success": { "type": "boolean" },
+                "data": { "$ref": "#/components/schemas/Vehicule" }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+    },
+    "/vehicules/{id}": {
+      "get": {
+        "tags": ["🚗 Véhicules"],
+        "summary": "Détail d'un véhicule",
+        "security": [],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "Véhicule récupéré" }
+        }
+      },
+      "put": {
+        "tags": ["🚗 Véhicules", "👨‍💼 Admin"],
+        "summary": "Mettre à jour un véhicule",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "tarifBase": { "type": "number" },
+                  "coutParKm": { "type": "number" },
+                  "commission": { "type": "number" },
+                  "description": { "type": "string" },
+                  "actif": { "type": "boolean" }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "Véhicule mis à jour" } }
+      },
+      "delete": {
+        "tags": ["🚗 Véhicules", "👨‍💼 Admin"],
+        "summary": "Désactiver un véhicule",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Véhicule désactivé" } }
+      }
+    },
+    "/zones": {
+      "get": {
+        "tags": ["🗺️ Zones"],
+        "summary": "Lister les zones de livraison",
+        "security": [],
+        "parameters": [
+          { "name": "actif", "in": "query", "schema": { "type": "boolean" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Liste des zones",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": { "type": "array", "items": { "$ref": "#/components/schemas/Zone" } }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["🗺️ Zones", "👨‍💼 Admin"],
+        "summary": "Créer une nouvelle zone",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["nom"],
+                "properties": {
+                  "nom": { "type": "string", "example": "Cotonou Centre" },
+                  "description": { "type": "string", "example": "Zone urbaine dense" },
+                  "supplement": { "type": "number", "example": 200, "minimum": 0 }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Zone créée",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": { "$ref": "#/components/schemas/Zone" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/zones/{id}": {
+      "get": {
+        "tags": ["🗺️ Zones"],
+        "summary": "Détail d'une zone",
+        "security": [],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Zone récupérée" } }
+      },
+      "put": {
+        "tags": ["🗺️ Zones", "👨‍💼 Admin"],
+        "summary": "Mettre à jour une zone",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "nom": { "type": "string" },
+                  "description": { "type": "string" },
+                  "supplement": { "type": "number" },
+                  "actif": { "type": "boolean" }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "Zone mise à jour" } }
+      },
+      "delete": {
+        "tags": ["🗺️ Zones", "👨‍💼 Admin"],
+        "summary": "Désactiver une zone",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Zone désactivée" } }
+      }
+    },
+    "/points": {
+      "get": {
+        "tags": ["🏪 Points ILLICO", "👨‍💼 Admin"],
+        "summary": "Lister les points ILLICO",
+        "parameters": [
+          { "name": "actif", "in": "query", "schema": { "type": "boolean" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Points récupérés",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": { "type": "array", "items": { "$ref": "#/components/schemas/User" } }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/points/{id}/activation": {
+      "put": {
+        "tags": ["🏪 Points ILLICO", "👨‍💼 Admin"],
+        "summary": "Activer/désactiver un point",
+        "parameters": [
+          { "$ref": "#/components/parameters/id" }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["actif"],
+                "properties": {
+                  "actif": { "type": "boolean", "example": true }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Statut mis à jour",
+            "content": {
+              "application/json": {
+                "example": { "success": true, "message": "Point ILLICO activé avec succès.", "data": { "actif": true } }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/points/mes-colis": {
+      "get": {
+        "tags": ["🏪 Points ILLICO", "📦 Colis"],
+        "summary": "Mes colis (Point ILLICO)",
+        "parameters": [
+          { "name": "statut", "in": "query", "schema": { "type": "string", "enum": ["en_attente", "receptionné", "retiré", "retourné"] } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Colis récupérés",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": { "type": "array", "items": { "$ref": "#/components/schemas/Colis" } }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/points/colis/reception": {
+      "post": {
+        "tags": ["🏪 Points ILLICO", "📦 Colis"],
+        "summary": "Réceptionner un colis en point",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["livraisonId", "otpRetrait"],
+                "properties": {
+                  "livraisonId": { "type": "string", "example": "65f2a1b2c3d4e5f6a7b8c9e0" },
+                  "otpRetrait": { "type": "string", "pattern": "^[0-9]{6}$", "example": "789012" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Colis réceptionné",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": true,
+                  "message": "Colis réceptionné avec succès.",
+                  "data": {
+                    "_id": "65f2a1b2c3d4e5f6a7b8c9f0",
+                    "reference": "COL-K9X2M-4P7Q",
+                    "statut": "receptionné",
+                    "dateLimiteGratuite": "2026-04-17T14:00:00Z"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/points/colis/{id}/retrait": {
+      "post": {
+        "tags": ["🏪 Points ILLICO", "📦 Colis"],
+        "summary": "Valider le retrait d'un colis",
+        "description": "Le client présente l'OTP. Si validé, le colis passe à 'retiré', frais de stockage calculés si retard (>48h = 200 FCFA/jour).",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["otpRetrait"],
+                "properties": {
+                  "otpRetrait": { "type": "string", "pattern": "^[0-9]{6}$", "example": "456789" },
+                  "signatureUrl": { "type": "string", "nullable": true, "example": "https://res.cloudinary.com/.../signature.png" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Colis retiré",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": true,
+                  "message": "Colis retiré avec succès.",
+                  "data": { "statut": "retiré", "fraisStockage": 400, "dateRetrait": "2026-04-17T16:30:00Z" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/points/stats": {
+      "get": {
+        "tags": ["🏪 Points ILLICO"],
+        "summary": "Mes statistiques (Point ILLICO)",
+        "responses": {
+          "200": {
+            "description": "Statistiques récupérées",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": true,
+                  "message": "Statistiques récupérées.",
+                  "data": {
+                    "totalColis": 156,
+                    "colisRetires": 142,
+                    "commissionTotale": 28500,
+                    "revenusMois": 4200
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/colis": {
+      "get": {
+        "tags": ["📦 Colis"],
+        "summary": "Lister les colis",
+        "description": "Filtré selon le rôle: Point ILLICO voit ses colis, Admin voit tout, Client voit ses colis via /mes-colis.",
+        "parameters": [
+          { "name": "statut", "in": "query", "schema": { "type": "string" } },
+          { "name": "reference", "in": "query", "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Colis récupérés",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": { "type": "array", "items": { "$ref": "#/components/schemas/Colis" } }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/colis/mes-colis": {
+      "get": {
+        "tags": ["📦 Colis"],
+        "summary": "Mes colis (Client)",
+        "responses": {
+          "200": {
+            "description": "Colis récupérés",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": { "type": "array", "items": { "$ref": "#/components/schemas/Colis" } }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/colis/{id}": {
+      "get": {
+        "tags": ["📦 Colis"],
+        "summary": "Détail d'un colis",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Colis récupéré",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": { "$ref": "#/components/schemas/Colis" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/colis/{id}/statut": {
+      "put": {
+        "tags": ["📦 Colis"],
+        "summary": "Mettre à jour le statut d'un colis",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["statut"],
+                "properties": {
+                  "statut": { "type": "string", "enum": ["en_attente", "receptionné", "retiré", "retourné"] }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Statut mis à jour",
+            "content": {
+              "application/json": {
+                "example": { "success": true, "message": "Statut mis à jour.", "data": { "statut": "retiré" } }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/colis/{id}/regenerate-otp": {
+      "post": {
+        "tags": ["📦 Colis"],
+        "summary": "Générer un nouvel OTP de retrait",
+        "description": "Utile si le client a perdu son OTP. Envoie une notification avec le nouvel OTP.",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Nouvel OTP généré",
+            "content": {
+              "application/json": {
+                "example": { "success": true, "message": "Nouvel OTP généré et envoyé au client.", "data": { "otpPreview": "456***" } }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/colis/admin/alertes": {
+      "get": {
+        "tags": ["📦 Colis", "👨‍💼 Admin"],
+        "summary": "Alertes colis en retard",
+        "description": "Retourne les colis à retirer sous 48h, entre 48h-7j, et en retard >7j pour relance.",
+        "responses": {
+          "200": {
+            "description": "Alertes récupérées",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": true,
+                  "data": {
+                    "aRetirer48h": [],
+                    "aRetirer7j": [{ "reference": "COL-ABC-123", "pointIllico": { "nom": "Point Haie Vive" } }],
+                    "enRetard": []
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tarifs": {
+      "get": {
+        "tags": ["💰 Tarifs"],
+        "summary": "Lister les tarifs",
+        "security": [],
+        "parameters": [
+          { "name": "vehicule", "in": "query", "schema": { "type": "string" } },
+          { "name": "zone", "in": "query", "schema": { "type": "string" } },
+          { "name": "actif", "in": "query", "schema": { "type": "boolean" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tarifs récupérés",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": { "type": "array", "items": { "$ref": "#/components/schemas/Tarif" } }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["💰 Tarifs", "👨‍💼 Admin"],
+        "summary": "Créer un nouveau tarif",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["vehicule", "zone", "prixBase", "coutKm"],
+                "properties": {
+                  "vehicule": { "type": "string", "example": "65f2a1b2c3d4e5f6a7b8c9b0" },
+                  "zone": { "type": "string", "example": "65f2a1b2c3d4e5f6a7b8c9c0" },
+                  "prixBase": { "type": "number", "example": 500 },
+                  "coutKm": { "type": "number", "example": 150 },
+                  "supplementUrgent": { "type": "number", "example": 1000 },
+                  "supplementNuit": { "type": "number", "example": 500 },
+                  "supplementPoids": { "type": "number", "example": 100 },
+                  "remisePointIllico": { "type": "number", "example": 10 }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Tarif créé",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": { "$ref": "#/components/schemas/Tarif" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tarifs/{id}": {
+      "get": {
+        "tags": ["💰 Tarifs"],
+        "summary": "Détail d'un tarif",
+        "security": [],
+        "parameters": [
+          { "$ref": "#/components/parameters/id" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tarif récupéré",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": { "$ref": "#/components/schemas/Tarif" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": ["💰 Tarifs", "👨‍💼 Admin"],
+        "summary": "Mettre à jour un tarif",
+        "parameters": [
+          { "$ref": "#/components/parameters/id" }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "prixBase": { "type": "number" },
+                  "coutKm": { "type": "number" },
+                  "supplementUrgent": { "type": "number" },
+                  "supplementNuit": { "type": "number" },
+                  "supplementPoids": { "type": "number" },
+                  "remisePointIllico": { "type": "number" },
+                  "actif": { "type": "boolean" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Tarif mis à jour",
+            "content": {
+              "application/json": {
+                "example": { "success": true, "message": "Tarif mis à jour.", "data": { "_id": "65f2a1b2c3d4e5f6a7b8c9a0", "prixBase": 600 } }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["💰 Tarifs", "👨‍💼 Admin"],
+        "summary": "Désactiver un tarif",
+        "description": "Soft delete: met actif=false au lieu de supprimer.",
+        "parameters": [
+          { "$ref": "#/components/parameters/id" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tarif désactivé",
+            "content": {
+              "application/json": {
+                "example": { "success": true, "message": "Tarif désactivé avec succès." }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tarifs/calcul": {
+      "post": {
+        "tags": ["💰 Tarifs"],
+        "summary": "Calculateur de tarif avancé",
+        "security": [],
+        "description": "Simule un calcul de prix avec tous les paramètres. Utile pour prévisualiser avant création de livraison.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["vehicule", "zone", "distance"],
+                "properties": {
+                  "vehicule": { "type": "string" },
+                  "zone": { "type": "string" },
+                  "distance": { "type": "number", "example": 4.25 },
+                  "urgent": { "type": "boolean" },
+                  "nuit": { "type": "boolean" },
+                  "poids": { "type": "number" },
+                  "mode": { "type": "string", "enum": ["express", "point_illico"] }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Calcul effectué",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": true,
+                  "message": "Calcul effectué.",
+                  "data": {
+                    "prixTotal": 2500,
+                    "details": {
+                      "base": "500 FCFA",
+                      "distance": "4.25 km × 150 FCFA/km = 638 FCFA",
+                      "supplements": { "zone": 200, "urgent": 0, "nuit": 0, "poids": 150 },
+                      "remise": "0%"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/transactions": {
+      "get": {
+        "tags": ["💳 Transactions"],
+        "summary": "Lister mes transactions",
+        "description": "Filtré selon le rôle. Admin voit tout, Client/Livreur/Point voit les siennes.",
+        "parameters": [
+          { "name": "type", "in": "query", "schema": { "type": "string", "enum": ["paiement", "commission_livreur", "commission_point", "stockage", "remboursement"] } },
+          { "name": "statut", "in": "query", "schema": { "type": "string", "enum": ["en_attente", "validé", "échoué"] } },
+          { "name": "modePaiement", "in": "query", "schema": { "type": "string" } },
+          { "name": "dateDebut", "in": "query", "schema": { "type": "string", "format": "date" } },
+          { "name": "dateFin", "in": "query", "schema": { "type": "string", "format": "date" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Transactions récupérées",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": { "type": "array", "items": { "$ref": "#/components/schemas/Transaction" } }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/transactions/{id}": {
+      "get": {
+        "tags": ["💳 Transactions"],
+        "summary": "Détail d'une transaction",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Transaction récupérée",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": { "$ref": "#/components/schemas/Transaction" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/transactions/{id}/validate": {
+      "put": {
+        "tags": ["💳 Transactions", "👨‍💼 Admin"],
+        "summary": "Valider/échouer une transaction",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["statut"],
+                "properties": {
+                  "statut": { "type": "string", "enum": ["validé", "échoué"] }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Transaction mise à jour",
+            "content": {
+              "application/json": {
+                "example": { "success": true, "message": "Transaction validée.", "data": { "statut": "validé" } }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/transactions/admin/stats": {
+      "get": {
+        "tags": ["💳 Transactions", "👨‍💼 Admin"],
+        "summary": "Statistiques financières",
+        "responses": {
+          "200": {
+            "description": "Stats récupérées",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": true,
+                  "data": {
+                    "parType": [
+                      { "_id": "paiement", "total": 125000, "count": 45, "valide": 42 },
+                      { "_id": "commission_livreur", "total": 18500, "count": 38, "valide": 38 }
+                    ],
+                    "totalMois": 143500,
+                    "periode": { "debut": "2026-04-01T00:00:00Z", "fin": "2026-04-15T23:59:59Z" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/forfaits": {
+      "get": {
+        "tags": ["🎫 Forfaits"],
+        "summary": "Lister les forfaits disponibles",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Forfaits récupérés",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": true,
+                  "message": "Forfaits récupérés.",
+                  "data": [
+                    { "_id": "65f2a1b2c3d4e5f6a7b8c9e5", "nom": "Pro Monthly", "prix": 25000, "dureeJours": 30, "livraisonsIncluses": 50, "remise": 15 },
+                    { "_id": "65f2a1b2c3d4e5f6a7b8c9e6", "nom": "Pro Annual", "prix": 250000, "dureeJours": 365, "livraisonsIncluses": 600, "remise": 20 }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["🎫 Forfaits", "👨‍💼 Admin"],
+        "summary": "Créer un nouveau forfait",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["nom", "prix", "dureeJours", "livraisonsIncluses"],
+                "properties": {
+                  "nom": { "type": "string", "example": "Pro Monthly" },
+                  "description": { "type": "string", "example": "50 livraisons/mois avec 15% de remise" },
+                  "prix": { "type": "number", "example": 25000 },
+                  "dureeJours": { "type": "number", "example": 30 },
+                  "livraisonsIncluses": { "type": "number", "example": 50 },
+                  "remise": { "type": "number", "example": 15 }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Forfait créé",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": { "$ref": "#/components/schemas/Forfait" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/forfaits/{id}": {
+      "get": {
+        "tags": ["🎫 Forfaits"],
+        "summary": "Détail d'un forfait",
+        "security": [],
+        "parameters": [
+          { "$ref": "#/components/parameters/id" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Forfait récupéré",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": { "$ref": "#/components/schemas/Forfait" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": ["🎫 Forfaits", "👨‍💼 Admin"],
+        "summary": "Mettre à jour un forfait",
+        "parameters": [
+          { "$ref": "#/components/parameters/id" }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "nom": { "type": "string" },
+                  "prix": { "type": "number" },
+                  "dureeJours": { "type": "number" },
+                  "livraisonsIncluses": { "type": "number" },
+                  "remise": { "type": "number" },
+                  "actif": { "type": "boolean" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Forfait mis à jour",
+            "content": {
+              "application/json": {
+                "example": { "success": true, "message": "Forfait mis à jour.", "data": { "_id": "65f2a1b2c3d4e5f6a7b8c9e5", "prix": 22000 } }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/forfaits/souscrire": {
+      "post": {
+        "tags": ["🎫 Forfaits"],
+        "summary": "Souscrire à un forfait",
+        "description": "Réservé aux clients professionnels. Paiement par credit_illico (solde) ou mobile_money.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["forfaitId", "modePaiement"],
+                "properties": {
+                  "forfaitId": { "type": "string", "example": "65f2a1b2c3d4e5f6a7b8c9e5" },
+                  "modePaiement": { "type": "string", "enum": ["credit_illico", "mobile_money"], "example": "credit_illico" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Souscription réussie",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": true,
+                  "message": "Souscription réussie!",
+                  "data": {
+                    "forfait": "Pro Monthly",
+                    "dureeJours": 30,
+                    "livraisonsIncluses": 50,
+                    "remise": 15,
+                    "dateActivation": "2026-04-15T10:00:00Z",
+                    "dateExpiration": "2026-05-15T10:00:00Z"
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "Solde insuffisant ou type client invalide" }
+        }
+      }
+    },
+    "/forfaits/check-remise": {
+      "get": {
+        "tags": ["🎫 Forfaits"],
+        "summary": "Vérifier ma remise forfait",
+        "description": "Retourne la remise active du client et l'état de son forfait (valide/expiré).",
+        "responses": {
+          "200": {
+            "description": "Statut forfait récupéré",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "withForfait": {
+                    "summary": "Forfait actif",
+                    "value": {
+                      "success": true,
+                      "message": "Forfait actif.",
+                      "data": { "hasForfait": true, "forfait": "Pro Monthly", "remise": 15, "livraisonsRestantes": 32, "expiration": "2026-05-15T10:00:00Z" }
+                    }
+                  },
+                  "withoutForfait": {
+                    "summary": "Aucun forfait",
+                    "value": {
+                      "success": true,
+                      "message": "Aucun forfait actif.",
+                      "data": { "hasForfait": false, "remise": 0 }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/notifications": {
+      "get": {
+        "tags": ["🔔 Notifications"],
+        "summary": "Mes notifications",
+        "responses": {
+          "200": {
+            "description": "Notifications récupérées",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": { "type": "array", "items": { "$ref": "#/components/schemas/Notification" } }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/notifications/{id}/lu": {
+      "put": {
+        "tags": ["🔔 Notifications"],
+        "summary": "Marquer une notification comme lue",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Notification marquée comme lue",
+            "content": {
+              "application/json": {
+                "example": { "success": true, "message": "Notification marquée comme lue.", "data": { "lu": true } }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/kpi": {
+      "get": {
+        "tags": ["👨‍💼 Admin"],
+        "summary": "Tableau de bord admin (KPI)",
+        "description": "Métriques clés pour l'administrateur: livraisons, revenus, utilisateurs, etc.",
+        "responses": {
+          "200": {
+            "description": "KPI récupérés",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": true,
+                  "data": {
+                    "livraisons": { "total": 1250, "enCours": 42, "livrees": 1180, "tauxReussite": 94.4 },
+                    "revenus": { "mois": 2850000, "total": 18500000 },
+                    "utilisateurs": { "clients": 450, "livreurs": 28, "points": 12 },
+                    "livreurs": { "enLigne": 15, "enMission": 8 },
+                    "colis": { "enAttente": 23, "enRetard": 3 }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/points-illico": {
+      "get": {
+        "tags": ["👨‍💼 Admin"],
+        "summary": "Gestion des points ILLICO",
+        "responses": {
+          "200": {
+            "description": "Points récupérés",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": { "type": "array", "items": { "$ref": "#/components/schemas/User" } }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "tags": ["🔧 Système"],
+        "summary": "Health check",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "API opérationnelle",
+            "content": {
+              "application/json": {
+                "example": { "success": true, "message": "API ILLICO DELIVERY opérationnelle 🚀" }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
