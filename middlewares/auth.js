@@ -85,7 +85,7 @@ export const verifyLivreur = (req, res, next) => {
 };
 
 // Vérification rôle PointIllico
-export const verifyPointIllico = (req, res, next) => {
+/* export const verifyPointIllico = (req, res, next) => {
   if (req.user?.role !== 'PointIllico') {
     console.log('❌ Accès Point ILLICO refusé pour:', req.user?.nom);
     return res.status(403).json({ 
@@ -100,6 +100,29 @@ export const verifyPointIllico = (req, res, next) => {
       message: 'Point ILLICO désactivé.' 
     });
   }
+  console.log('✅ Accès Point ILLICO autorisé');
+  next();
+}; */
+
+export const verifyPointIllico = (req, res, next) => {
+  const allowedRoles = ['PointIllico', 'Admin'];
+
+  if (!allowedRoles.includes(req.user?.role)) {
+    console.log('❌ Accès refusé pour:', req.user?.nom);
+    return res.status(403).json({ 
+      success: false, 
+      message: 'Accès réservé aux points ILLICO ou Admin.' 
+    });
+  }
+
+  if (!req.user.actif) {
+    console.log('❌ Compte inactif:', req.user?.nom);
+    return res.status(403).json({ 
+      success: false, 
+      message: 'Compte désactivé.' 
+    });
+  }
+
   console.log('✅ Accès Point ILLICO autorisé');
   next();
 };
