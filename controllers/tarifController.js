@@ -99,7 +99,8 @@ export const createTarif = async (req, res) => {
     res.status(201).json({
       success: true,
       message: 'Tarif créé avec succès.',
-      data: await tarif.populate('vehicule').populate('zone')
+      data: await tarif.populate(['vehicule', 'zone']) 
+      //await tarif.populate('vehicule').populate('zone')
     });
   } catch (error) {
     console.error('❌ Erreur création tarif:', error.message);
