@@ -166,6 +166,8 @@ export const createLivraison = async (req, res) => {
     }
     
     console.log('📦 Livraison créée:', livraison._id);
+    console.log(`💰 Estimation: ${Math.round(prixEstime)} FCFA pour ${distance.toFixed(2)} km`);
+    console.log(`📱 OTP: ${otpLivraison}`);
     
     res.status(201).json({
       success: true,
