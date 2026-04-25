@@ -764,8 +764,14 @@ export const uploadProfilePhoto = async (req, res) => {
       uploadStream.end(req.file.buffer);
     });
     
-    req.user.photoProfil = result.secure_url;
-    await req.user.save();
+    /* req.user.photoProfil = result.secure_url;
+    await req.user.save(); */
+    // ✅ Mise à jour ciblée uniquement sur photoProfil
+  await User.findByIdAndUpdate(
+    req.user._id,
+    { $set: { photoProfil: result.secure_url } },
+    { runValidators: false }
+  );
     
     console.log('✅ Photo de profil uploadée');
     

@@ -37,9 +37,8 @@ const userSchema = new mongoose.Schema({
     type: String, 
     required: function() { return this.role === 'Client'; },
     minlength: 4,
-    maxlength: 6,
-    match: [/^[0-9]{4,6}$/, 'Code PIN doit contenir 4 à 6 chiffres'],
-    select: false 
+    select: false,
+    //match: [/^[0-9]{4,6}$/, 'Code PIN doit contenir 4 à 6 chiffres'],
   },
   role: { 
     type: String, 
