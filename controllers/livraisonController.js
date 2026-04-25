@@ -104,12 +104,12 @@ export const createLivraison = async (req, res) => {
   try {
     const { 
       pointDepart, pointArrivee, vehicule, mode, pointIllico,
-      urgent, nuit, poids, modePaiement 
+      urgent, nuit, poids, modePaiement, natureColis
     } = req.body;
     
-    if (!pointDepart?.adresse || !pointDepart?.coordinates || 
-        !pointArrivee?.adresse || !pointArrivee?.coordinates || 
-        !vehicule || !mode) {
+    if (!pointDepart?.adresse || !pointDepart?.coordinates || !pointDepart?.telephoneContact ||
+        !pointArrivee?.adresse || !pointArrivee?.coordinates || !pointArrivee?.telephoneContact ||
+        !vehicule || !mode || !natureColis) {
       return res.status(400).json({ 
         success: false, 
         message: 'Champs requis manquants.' 
@@ -144,6 +144,7 @@ export const createLivraison = async (req, res) => {
       prixEstime: Math.round(prixEstime),
       modePaiement,
       otpLivraison,
+      natureColis,
       urgent: urgent || false,
       nuit: nuit || false,
       poids: poids || 1
@@ -673,11 +674,100 @@ export const assignLivreur = async (req, res) => {
   }
 };
 
+// 🚴 Liste des livraisons en attente (pour les livreurs)
+export const getAvailableLivraisons = async (req, res) => {
+  try {
+    const livraisons = await Livraison.find({
+      statut: 'en_attente',
+      vehicule: req.user.vehicule // On ne montre que celles compatibles avec son véhicule
+    })
+      .populate('client', 'nom telephone')
+      .populate('vehicule')
+      .sort({ dateCreation: -1 });
+
+    console.log(`📋 ${livraisons.length} livraisons en attente trouvées pour le véhicule ${req.user.vehicule}`);
+
+    res.json({
+      success: true,
+      message: 'Livraisons en attente récupérées.',
+      data: livraisons
+    });
+  } catch (error) {
+    console.error('❌ Erreur récupération livraisons en attente:', error.message);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur serveur.'
+    });
+  }
+};
+
+// 🚴 Auto-affectation par le livreur
+export const selfAssignLivraison = async (req, res) => {
+  try {
+    const livraison = await Livraison.findById(req.params.id);
+
+    if (!livraison) {
+      return res.status(404).json({
+        success: false,
+        message: 'Livraison non trouvée.'
+      });
+    }
+
+    if (livraison.statut !== 'en_attente') {
+      return res.status(400).json({
+        success: false,
+        message: 'Cette livraison n\'est plus disponible.'
+      });
+    }
+
+    // Vérifier si le livreur est déjà en mission
+    if (req.user.statut === 'en_mission') {
+      return res.status(400).json({
+        success: false,
+        message: 'Vous êtes déjà en mission.'
+      });
+    }
+
+    // Vérifier la compatibilité du véhicule
+    if (livraison.vehicule.toString() !== req.user.vehicule.toString()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Votre véhicule n\'est pas compatible avec cette livraison.'
+      });
+    }
+
+    // Affecter la livraison
+    livraison.livreur = req.user._id;
+    livraison.statut = 'affecté';
+    await livraison.save();
+
+    // Mettre à jour le statut du livreur
+    req.user.statut = 'en_mission';
+    await req.user.save();
+
+    console.log(`🚴 Livraison ${livraison._id} auto-affectée par ${req.user.nom}`);
+
+    res.json({
+      success: true,
+      message: 'Livraison affectée avec succès.',
+      data: livraison
+    });
+  } catch (error) {
+    console.error('❌ Erreur auto-affectation:', error.message);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur serveur.'
+    });
+  }
+};
+
 export default {
   estimatePrice,
   createLivraison,
   getLivraisons,
   getLivraison,
+  getAvailableLivraisons,
+  selfAssignLivraison,
   validateOTP,
   uploadPreuve,
   updateStatut,

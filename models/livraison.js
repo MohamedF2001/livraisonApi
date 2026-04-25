@@ -6,6 +6,7 @@ const livraisonSchema = new mongoose.Schema({
   
   pointDepart: {
     adresse: { type: String, required: true, trim: true },
+    telephoneContact: { type: String, required: true, trim: true },
     coordinates: { 
       type: [Number], // [longitude, latitude]
       required: true 
@@ -13,6 +14,7 @@ const livraisonSchema = new mongoose.Schema({
   },
   pointArrivee: {
     adresse: { type: String, required: true, trim: true },
+    telephoneContact: { type: String, required: true, trim: true },
     coordinates: { 
       type: [Number],
       required: true 
@@ -43,6 +45,7 @@ const livraisonSchema = new mongoose.Schema({
   preuveLivraisonUrl: { type: String, default: '' },
   noteLivreur: { type: Number, min: 1, max: 5 },
   
+  natureColis: { type: String, required: true, trim: true },
   urgent: { type: Boolean, default: false },
   nuit: { type: Boolean, default: false },
   poids: { type: Number, default: 1 }, // en kg

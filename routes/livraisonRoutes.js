@@ -4,6 +4,8 @@ import {
   createLivraison,
   getLivraisons,
   getLivraison,
+  getAvailableLivraisons,
+  selfAssignLivraison,
   validateOTP,
   uploadPreuve,
   updateStatut,
@@ -34,6 +36,8 @@ router.post('/:id/valider-otp', verifyToken, verifyClient, validateOTP);
 router.delete('/:id', verifyToken, verifyClient, deleteLivraison);
 
 // 🚴 Livreur
+router.get('/disponibles', verifyToken, verifyLivreur, getAvailableLivraisons);
+router.post('/:id/accepter', verifyToken, verifyLivreur, selfAssignLivraison);
 router.get('/mes-missions', verifyToken, verifyLivreur, getLivraisons);
 router.put('/:id/statut', verifyToken, verifyLivreur, updateStatut);
 router.post('/:id/valider-otp', verifyToken, verifyLivreur, validateOTP);

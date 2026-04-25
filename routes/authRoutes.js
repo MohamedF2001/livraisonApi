@@ -4,9 +4,9 @@ import {
   clientRegister, clientLogin,
   livreurRegister, livreurLogin,
   pointIllicoRegister, pointIllicoLogin,
-  getProfile, uploadProfilePhoto
+  getProfile, updateProfile, uploadProfilePhoto
 } from '../controllers/authController.js';
-import { verifyToken, verifyLivreur } from '../middlewares/auth.js';
+import { verifyToken } from '../middlewares/auth.js';
 import multer from 'multer';
 
 const router = express.Router();
@@ -30,8 +30,9 @@ router.post('/point/login', pointIllicoLogin);
 
 // Profil (tous rôles)
 router.get('/profile', verifyToken, getProfile);
+router.put('/profile', verifyToken, updateProfile);
 
-// Upload photo profil (livreur uniquement)
-router.post('/profile/photo', verifyToken, verifyLivreur, upload.single('photo'), uploadProfilePhoto);
+// Upload photo profil (tous rôles)
+router.post('/profile/photo', verifyToken, upload.single('photo'), uploadProfilePhoto);
 
 export default router;

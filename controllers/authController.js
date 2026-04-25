@@ -660,6 +660,49 @@ export const pointIllicoLogin = async (req, res) => {
   }
 };
 
+// 👤 Mettre à jour le profil (tous rôles)
+export const updateProfile = async (req, res) => {
+  try {
+    const updates = req.body;
+    const allowedUpdates = ['nom', 'telephone', 'adresse', 'email', 'typeClient'];
+
+    // Empêcher la modification de certains champs sensibles via cette route
+    const filteredUpdates = Object.keys(updates)
+      .filter(key => allowedUpdates.includes(key))
+      .reduce((obj, key) => {
+        obj[key] = updates[key];
+        return obj;
+      }, {});
+
+    const user = await User.findByIdAndUpdate(
+      req.user._id,
+      { $set: filteredUpdates },
+      { new: true, runValidators: true }
+    ).select('-motDePasse -codePin');
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'Utilisateur non trouvé.'
+      });
+    }
+
+    console.log('✅ Profil mis à jour:', user.nom);
+
+    res.json({
+      success: true,
+      message: 'Profil mis à jour avec succès.',
+      data: user
+    });
+  } catch (error) {
+    console.error('❌ Erreur mise à jour profil:', error.message);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur serveur lors de la mise à jour du profil.'
+    });
+  }
+};
+
 // 👤 Profil utilisateur (tous rôles)
 export const getProfile = async (req, res) => {
   try {
@@ -691,7 +734,7 @@ export const getProfile = async (req, res) => {
   }
 };
 
-// 🖼️ Upload photo de profil (livreur)
+// 🖼️ Upload photo de profil (tous rôles)
 export const uploadProfilePhoto = async (req, res) => {
   try {
     if (!req.file) {
@@ -703,15 +746,19 @@ export const uploadProfilePhoto = async (req, res) => {
     
     // Supprimer ancienne photo si existe
     if (req.user.photoProfil) {
-      const publicId = req.user.photoProfil.split('/').pop().split('.')[0];
-      await cloudinary.uploader.destroy(`illico/profiles/${publicId}`);
-      console.log('🗑️ Ancienne photo supprimée');
+      try {
+        const publicId = req.user.photoProfil.split('/').pop().split('.')[0];
+        await cloudinary.uploader.destroy(`illico/profiles/${publicId}`);
+        console.log('🗑️ Ancienne photo supprimée');
+      } catch (err) {
+        console.warn('⚠️ Impossible de supprimer l\'ancienne photo:', err.message);
+      }
     }
     
     // Upload vers Cloudinary
     const result = await new Promise((resolve, reject) => {
       const uploadStream = cloudinary.uploader.upload_stream(
-        { folder: 'illico/profiles', public_id: `livreur_${req.user._id}` },
+        { folder: 'illico/profiles', public_id: `user_${req.user._id}` },
         (error, result) => error ? reject(error) : resolve(result)
       );
       uploadStream.end(req.file.buffer);
@@ -746,5 +793,6 @@ export default {
   pointIllicoRegister,
   pointIllicoLogin,
   getProfile,
+  updateProfile,
   uploadProfilePhoto
 };

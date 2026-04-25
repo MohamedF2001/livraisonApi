@@ -79,6 +79,7 @@
             "type": "object",
             "properties": {
               "adresse": { "type": "string", "example": "Cotonou, Haie Vive" },
+              "telephoneContact": { "type": "string", "example": "+22997000000" },
               "coordinates": { "type": "array", "items": { "type": "number" }, "example": [2.4394, 6.3654] }
             }
           },
@@ -86,6 +87,7 @@
             "type": "object",
             "properties": {
               "adresse": { "type": "string", "example": "Abomey-Calavi, Godomey" },
+              "telephoneContact": { "type": "string", "example": "+22997000001" },
               "coordinates": { "type": "array", "items": { "type": "number" }, "example": [2.3558, 6.4478] }
             }
           },
@@ -101,6 +103,7 @@
           "otpValidé": { "type": "boolean", "example": false },
           "preuveLivraisonUrl": { "type": "string", "example": "https://res.cloudinary.com/.../proof.jpg", "nullable": true },
           "noteLivreur": { "type": "number", "minimum": 1, "maximum": 5, "nullable": true },
+          "natureColis": { "type": "string", "example": "Documents importants" },
           "urgent": { "type": "boolean", "example": false },
           "nuit": { "type": "boolean", "example": false },
           "poids": { "type": "number", "example": 2.5 },
@@ -264,27 +267,30 @@
       },
       "LivraisonCreateRequest": {
         "type": "object",
-        "required": ["pointDepart", "pointArrivee", "vehicule", "mode"],
+        "required": ["pointDepart", "pointArrivee", "vehicule", "mode", "natureColis"],
         "properties": {
           "pointDepart": {
             "type": "object",
-            "required": ["adresse", "coordinates"],
+            "required": ["adresse", "coordinates", "telephoneContact"],
             "properties": {
               "adresse": { "type": "string", "example": "Cotonou, Haie Vive, Rue 123" },
+              "telephoneContact": { "type": "string", "example": "+22997000000" },
               "coordinates": { "type": "array", "items": { "type": "number" }, "example": [2.4394, 6.3654], "description": "[longitude, latitude]" }
             }
           },
           "pointArrivee": {
             "type": "object",
-            "required": ["adresse", "coordinates"],
+            "required": ["adresse", "coordinates", "telephoneContact"],
             "properties": {
               "adresse": { "type": "string", "example": "Abomey-Calavi, Godomey, Carrefour" },
+              "telephoneContact": { "type": "string", "example": "+22997000001" },
               "coordinates": { "type": "array", "items": { "type": "number" }, "example": [2.3558, 6.4478] }
             }
           },
           "vehicule": { "type": "string", "example": "65f2a1b2c3d4e5f6a7b8c9b0", "description": "ID du véhicule (Vehicule._id)" },
           "mode": { "type": "string", "enum": ["express", "point_illico"], "example": "express" },
           "pointIllico": { "type": "string", "nullable": true, "example": "65f2a1b2c3d4e5f6a7b8c9d3", "description": "ID du point ILLICO (si mode=point_illico)" },
+          "natureColis": { "type": "string", "example": "Documents importants" },
           "urgent": { "type": "boolean", "example": false },
           "nuit": { "type": "boolean", "example": false },
           "poids": { "type": "number", "example": 2.5, "description": "Poids du colis en kg" },
@@ -727,13 +733,53 @@
           },
           "401": { "$ref": "#/components/responses/Unauthorized" }
         }
+      },
+      "put": {
+        "tags": ["🔐 Auth"],
+        "summary": "Mettre à jour mon profil",
+        "description": "Permet à l'utilisateur connecté (Client ou Livreur) de mettre à jour ses informations.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "nom": { "type": "string", "example": "Nouveau Nom" },
+                  "telephone": { "type": "string", "example": "+22997123456" },
+                  "adresse": { "type": "string", "example": "Nouvelle Adresse" },
+                  "email": { "type": "string", "format": "email", "example": "nouveau@email.com" },
+                  "typeClient": { "type": "string", "enum": ["standard", "professionnel"] }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Profil mis à jour",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "message": { "type": "string", "example": "Profil mis à jour avec succès." },
+                    "data": { "$ref": "#/components/schemas/User" }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
       }
     },
     "/auth/profile/photo": {
       "post": {
         "tags": ["🔐 Auth"],
-        "summary": "Uploader photo de profil (livreur)",
-        "description": "Réservé aux livreurs. Upload via multipart/form-data. L'ancienne photo est automatiquement supprimée de Cloudinary.",
+        "summary": "Uploader photo de profil",
+        "description": "Upload via multipart/form-data. L'ancienne photo est automatiquement supprimée de Cloudinary.",
         "requestBody": {
           "required": true,
           "content": {
@@ -799,6 +845,54 @@
               }
             }
           }
+        }
+      }
+    },
+    "/livraisons/disponibles": {
+      "get": {
+        "tags": ["📦 Livraisons", "🚴 Livreurs"],
+        "summary": "Lister les livraisons en attente",
+        "description": "Réservé aux livreurs. Retourne les livraisons en statut 'en_attente' compatibles avec le véhicule du livreur.",
+        "responses": {
+          "200": {
+            "description": "Liste des livraisons",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "message": { "type": "string" },
+                    "data": { "type": "array", "items": { "$ref": "#/components/schemas/Livraison" } }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" }
+        }
+      }
+    },
+    "/livraisons/{id}/accepter": {
+      "post": {
+        "tags": ["📦 Livraisons", "🚴 Livreurs"],
+        "summary": "S'auto-affecter une livraison",
+        "description": "Réservé aux livreurs. Permet au livreur de prendre une livraison en attente.",
+        "parameters": [
+          { "$ref": "#/components/parameters/id" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Livraison affectée",
+            "content": {
+              "application/json": {
+                "example": { "success": true, "message": "Livraison affectée avec succès." }
+              }
+            }
+          },
+          "400": { "description": "Livraison non disponible ou véhicule incompatible" },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
         }
       }
     },
