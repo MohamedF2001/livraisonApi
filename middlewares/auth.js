@@ -127,4 +127,32 @@ export const verifyPointIllico = (req, res, next) => {
   next();
 };
 
-export default { verifyToken, verifyAdmin, verifyClient, verifyLivreur, verifyPointIllico };
+// Vérification de plusieurs rôles
+export const authorize = (...roles) => {
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({ success: false, message: 'Utilisateur non authentifié.' });
+    }
+
+    if (!roles.includes(req.user.role)) {
+      console.log(`❌ Accès refusé pour ${req.user.nom} (${req.user.role}). Rôles requis: ${roles.join(', ')}`);
+      return res.status(403).json({
+        success: false,
+        message: 'Accès non autorisé.'
+      });
+    }
+
+    // Vérifications additionnelles selon le rôle
+    if (req.user.role === 'Livreur' && !req.user.valide) {
+      return res.status(403).json({ success: false, message: 'Compte livreur en attente de validation.' });
+    }
+
+    if (req.user.role === 'PointIllico' && !req.user.actif) {
+      return res.status(403).json({ success: false, message: 'Compte Point Illico inactif.' });
+    }
+
+    next();
+  };
+};
+
+export default { verifyToken, verifyAdmin, verifyClient, verifyLivreur, verifyPointIllico, authorize };

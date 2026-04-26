@@ -12,7 +12,7 @@ import {
   deleteLivraison,
   assignLivreur
 } from '../controllers/livraisonController.js';
-import { verifyToken, verifyClient, verifyLivreur, verifyAdmin, verifyPointIllico } from '../middlewares/auth.js';
+import { verifyToken, verifyClient, verifyLivreur, verifyAdmin, verifyPointIllico, authorize } from '../middlewares/auth.js';
 import multer from 'multer';
 
 const router = express.Router();
@@ -28,28 +28,25 @@ const upload = multer({
 // 🔓 Public
 router.post('/estimation-prix', estimatePrice);
 
-// 👤 Client
+// ⚙️ Routes Communes (Filtrage géré dans le contrôleur)
+router.get('/', verifyToken, authorize('Admin', 'Client', 'Livreur', 'PointIllico'), getLivraisons);
+router.get('/disponibles', verifyToken, verifyLivreur, getAvailableLivraisons);
+router.get('/mes-missions', verifyToken, verifyLivreur, getLivraisons);
+
+// 📦 Gestion Livraison
 router.post('/', verifyToken, verifyClient, createLivraison);
-router.get('/', verifyToken, verifyClient, getLivraisons);
-router.get('/:id', verifyToken, verifyClient, getLivraison);
-router.post('/:id/valider-otp', verifyToken, verifyClient, validateOTP);
+router.get('/:id', verifyToken, authorize('Admin', 'Client', 'Livreur', 'PointIllico'), getLivraison);
 router.delete('/:id', verifyToken, verifyClient, deleteLivraison);
 
-// 🚴 Livreur
-router.get('/disponibles', verifyToken, verifyLivreur, getAvailableLivraisons);
+// 🚴 Actions Livreur
 router.post('/:id/accepter', verifyToken, verifyLivreur, selfAssignLivraison);
-router.get('/mes-missions', verifyToken, verifyLivreur, getLivraisons);
-router.put('/:id/statut', verifyToken, verifyLivreur, updateStatut);
-router.post('/:id/valider-otp', verifyToken, verifyLivreur, validateOTP);
 router.post('/:id/preuve', verifyToken, verifyLivreur, upload.single('preuve'), uploadPreuve);
 
-// 🏪 Point ILLICO
-router.post('/:id/valider-otp', verifyToken, verifyPointIllico, validateOTP);
+// 🔄 Mises à jour & Validation
+router.put('/:id/statut', verifyToken, authorize('Admin', 'Livreur'), updateStatut);
+router.post('/:id/valider-otp', verifyToken, authorize('Client', 'Livreur', 'PointIllico'), validateOTP);
 
-// 👨‍💼 Admin
-router.get('/', verifyToken, verifyAdmin, getLivraisons);
-router.get('/:id', verifyToken, verifyAdmin, getLivraison);
+// 👨‍💼 Administration
 router.put('/:id/affecter', verifyToken, verifyAdmin, assignLivreur);
-router.put('/:id/statut', verifyToken, verifyAdmin, updateStatut);
 
 export default router;
