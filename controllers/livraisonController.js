@@ -265,10 +265,15 @@ export const getLivraisons = async (req, res) => {
   try {
     let query = {};
     
+    // Filtrage par rôle
     if (req.user.role === 'Client') {
       query.client = req.user._id;
     } else if (req.user.role === 'Livreur') {
+      // Si la route est /mes-missions, on filtre par livreur
+      // Sinon, si c'est la route générale / on filtre aussi par livreur pour la sécurité
       query.livreur = req.user._id;
+    } else if (req.user.role === 'PointIllico') {
+      query.pointIllico = req.user._id;
     }
     
     const livraisons = await Livraison.find(query)
@@ -316,11 +321,24 @@ export const getLivraison = async (req, res) => {
         message: 'Accès non autorisé.' 
       });
     }
-    if (req.user.role === 'Livreur' && livraison.livreur?._id.toString() !== req.user._id.toString()) {
+
+    if (req.user.role === 'PointIllico' && livraison.pointIllico?._id.toString() !== req.user._id.toString()) {
       return res.status(403).json({ 
         success: false, 
         message: 'Accès non autorisé.' 
       });
+    }
+    if (req.user.role === 'Livreur') {
+      const isAssigned = livraison.livreur?.toString() === req.user._id.toString() ||
+                         livraison.livreur?._id?.toString() === req.user._id.toString();
+      const isAvailable = livraison.statut === 'en_attente';
+
+      if (!isAssigned && !isAvailable) {
+        return res.status(403).json({
+          success: false,
+          message: 'Accès non autorisé.'
+        });
+      }
     }
     
     console.log('🔍 Livraison récupérée:', livraison._id);
