@@ -1,4 +1,3 @@
-import { authenticator } from '@otplib/preset-default';
 import Livraison from '../models/livraison.js';
 import Tarif from '../models/tarif.js';
 import Vehicule from '../models/vehicule.js';
@@ -107,8 +106,8 @@ export const createLivraison = async (req, res) => {
       urgent, nuit, poids, modePaiement, natureColis
     } = req.body;
     
-    if (!pointDepart?.adresse || !pointDepart?.coordinates || !pointDepart?.telephoneContact ||
-        !pointArrivee?.adresse || !pointArrivee?.coordinates || !pointArrivee?.telephoneContact ||
+    if (!pointDepart?.adresse || !pointDepart?.coordinates || !pointDepart?.telephoneContact || !pointDepart?.nomExpediteur ||
+        !pointArrivee?.adresse || !pointArrivee?.coordinates || !pointArrivee?.telephoneContact || !pointArrivee?.nomDestinataire ||
         !vehicule || !mode || !natureColis) {
       return res.status(400).json({ 
         success: false, 
@@ -132,10 +131,11 @@ export const createLivraison = async (req, res) => {
     if (nuit) prixEstime += tarif.supplementNuit;
     if (poids > 1) prixEstime += (poids - 1) * tarif.supplementPoids;
     
-    const otpLivraison = authenticator.generate(process.env.OTP_SECRET + Date.now() + req.user._id);
+    const codeSuivi = Math.random().toString(36).substring(2, 7).toUpperCase();
     
     const livraison = new Livraison({
       client: req.user._id,
+      codeSuivi,
       pointDepart,
       pointArrivee,
       vehicule,
@@ -143,7 +143,6 @@ export const createLivraison = async (req, res) => {
       pointIllico,
       prixEstime: Math.round(prixEstime),
       modePaiement,
-      otpLivraison,
       natureColis,
       urgent: urgent || false,
       nuit: nuit || false,
@@ -156,19 +155,19 @@ export const createLivraison = async (req, res) => {
     await Notification.create({
       destinataire: req.user._id,
       type: 'livraison',
-      message: `Votre livraison #${livraison._id.toString().slice(-6)} a été créée. OTP: ${otpLivraison.slice(0,3)}***`
+      message: `Votre livraison #${livraison._id.toString().slice(-6)} a été créée. Code de suivi: ${codeSuivi}`
     });
     
     if (req.io) {
       req.io.to(`client_${req.user._id}`).emit('livraison:created', {
         livraisonId: livraison._id,
-        statut: livraison.statut
+        statut: livraison.statut,
+        codeSuivi
       });
     }
     
-    console.log('📦 Livraison créée:', livraison._id);
+    console.log('📦 Livraison créée:', livraison._id, 'Code Suivi:', codeSuivi);
     console.log(`💰 Estimation: ${Math.round(prixEstime)} FCFA pour ${distance.toFixed(2)} km`);
-    console.log(`📱 OTP: ${otpLivraison}`);
     
     res.status(201).json({
       success: true,
@@ -193,17 +192,26 @@ const autoDispatch = async (livraisonId) => {
   try {
     const livraison = await Livraison.findById(livraisonId).populate('vehicule');
     if (!livraison) return;
+
+    // Déterminer la zone du point de départ
+    const tarif = await Tarif.findOne({ vehicule: livraison.vehicule, actif: true }).populate('zone');
+    if (!tarif || !tarif.zone) {
+      console.log('❌ Aucun tarif ou zone configuré pour cette livraison');
+      return;
+    }
+    const zoneId = tarif.zone._id;
     
     const livreurs = await User.find({
       role: 'Livreur',
       valide: true,
       statut: 'en_ligne',
-      vehicule: livraison.vehicule,
+      vehicule: livraison.vehicule._id,
+      zonesDintervention: zoneId,
       'location.coordinates': { $exists: true }
     });
     
     if (livreurs.length === 0) {
-      console.log('⏳ Aucun livreur disponible, en attente...');
+      console.log('⏳ Aucun livreur disponible dans cette zone, en attente...');
       return;
     }
     
@@ -264,17 +272,20 @@ const autoDispatch = async (livraisonId) => {
 export const getLivraisons = async (req, res) => {
   try {
     let query = {};
+    const { statut, codeSuivi } = req.query;
+
+    if (statut) query.statut = statut;
+    if (codeSuivi) query.codeSuivi = codeSuivi;
     
     // Filtrage par rôle
     if (req.user.role === 'Client') {
       query.client = req.user._id;
     } else if (req.user.role === 'Livreur') {
-      // Si la route est /mes-missions, on filtre par livreur
-      // Sinon, si c'est la route générale / on filtre aussi par livreur pour la sécurité
       query.livreur = req.user._id;
     } else if (req.user.role === 'PointIllico') {
       query.pointIllico = req.user._id;
     }
+    // Admin voit tout (query vide au départ)
     
     const livraisons = await Livraison.find(query)
       .populate('client', 'nom telephone')
@@ -357,11 +368,15 @@ export const getLivraison = async (req, res) => {
   }
 };
 
-// ✅ Validation OTP livraison
-export const validateOTP = async (req, res) => {
+// 🔍 Suivi de livraison par code unique
+export const trackLivraison = async (req, res) => {
   try {
-    const { otp } = req.body;
-    const livraison = await Livraison.findById(req.params.id).select('+otpLivraison +otpRetrait');
+    const { code } = req.params;
+    const livraison = await Livraison.findOne({ codeSuivi: code.toUpperCase() })
+      .populate('client', 'nom')
+      .populate('livreur', 'nom telephone photoProfil location')
+      .populate('vehicule')
+      .populate('pointIllico', 'nom adresse');
     
     if (!livraison) {
       return res.status(404).json({ 
@@ -370,48 +385,34 @@ export const validateOTP = async (req, res) => {
       });
     }
     
-    const expectedOTP = req.user.role === 'Livreur' ? livraison.otpLivraison : 
-                       req.user.role === 'PointIllico' ? livraison.otpRetrait : 
-                       livraison.otpLivraison;
-    
-    if (otp !== expectedOTP) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'OTP invalide.' 
-      });
-    }
-    
-    livraison.otpValidé = true;
-    
-    if (req.user.role === 'Livreur' && livraison.statut === 'affecté') {
-      livraison.statut = 'arrivé_pickup';
-    } else if (req.user.role === 'Livreur' && livraison.statut === 'arrivé_pickup') {
-      livraison.statut = 'colis_récupéré';
-    } else if (req.user.role === 'PointIllico') {
-      livraison.statut = 'déposé_en_point';
-    } else if (req.user.role === 'Client' && livraison.statut === 'colis_récupéré') {
-      livraison.statut = 'livré';
-      livraison.dateLivraison = new Date();
-    }
-    
-    await livraison.save();
-    
-    if (global.io) {
-      global.io.to(`livraison_${livraison._id}`).emit('livraison:update', {
-        statut: livraison.statut,
-        otpValidé: livraison.otpValidé
-      });
-    }
-    
-    console.log('✅ OTP validé pour livraison:', livraison._id);
+    console.log('🔍 Suivi livraison récupéré:', livraison.codeSuivi);
     
     res.json({
       success: true,
-      message: 'OTP validé avec succès.',
-      data: { statut: livraison.statut, otpValidé: true }
+      message: 'Informations de suivi récupérées.',
+      data: {
+        codeSuivi: livraison.codeSuivi,
+        statut: livraison.statut,
+        pointDepart: {
+          adresse: livraison.pointDepart.adresse,
+          nomExpediteur: livraison.pointDepart.nomExpediteur
+        },
+        pointArrivee: {
+          adresse: livraison.pointArrivee.adresse,
+          nomDestinataire: livraison.pointArrivee.nomDestinataire
+        },
+        livreur: livraison.livreur ? {
+          nom: livraison.livreur.nom,
+          telephone: livraison.livreur.telephone,
+          photoProfil: livraison.livreur.photoProfil,
+          location: livraison.livreur.location
+        } : null,
+        dateCreation: livraison.dateCreation,
+        dateLivraison: livraison.dateLivraison
+      }
     });
   } catch (error) {
-    console.error('❌ Erreur validation OTP:', error.message);
+    console.error('❌ Erreur suivi livraison:', error.message);
     res.status(500).json({ 
       success: false, 
       message: 'Erreur serveur.' 
@@ -784,9 +785,9 @@ export default {
   createLivraison,
   getLivraisons,
   getLivraison,
+  trackLivraison,
   getAvailableLivraisons,
   selfAssignLivraison,
-  validateOTP,
   uploadPreuve,
   updateStatut,
   deleteLivraison,

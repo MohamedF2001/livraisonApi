@@ -1,5 +1,4 @@
 import jwt from 'jsonwebtoken';
-import { authenticator } from '@otplib/preset-default';
 import User from '../models/user.js';
 import { cloudinary } from '../config/cloudinary.js';
 
@@ -664,7 +663,7 @@ export const pointIllicoLogin = async (req, res) => {
 export const updateProfile = async (req, res) => {
   try {
     const updates = req.body;
-    const allowedUpdates = ['nom', 'telephone', 'adresse', 'email', 'typeClient'];
+    const allowedUpdates = ['nom', 'telephone', 'adresse', 'email', 'typeClient', 'zonesDintervention', 'location'];
 
     // Empêcher la modification de certains champs sensibles via cette route
     const filteredUpdates = Object.keys(updates)
@@ -677,7 +676,7 @@ export const updateProfile = async (req, res) => {
     const user = await User.findByIdAndUpdate(
       req.user._id,
       { $set: filteredUpdates },
-      { new: true, runValidators: true }
+      { returnDocument: 'after', runValidators: true }
     ).select('-motDePasse -codePin');
 
     if (!user) {

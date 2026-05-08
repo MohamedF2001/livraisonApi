@@ -3,8 +3,10 @@ import mongoose from 'mongoose';
 const livraisonSchema = new mongoose.Schema({
   client: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   livreur: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  codeSuivi: { type: String, unique: true, required: true },
   
   pointDepart: {
+    nomExpediteur: { type: String, required: true, trim: true },
     adresse: { type: String, required: true, trim: true },
     telephoneContact: { type: String, required: true, trim: true },
     coordinates: { 
@@ -13,6 +15,7 @@ const livraisonSchema = new mongoose.Schema({
     }
   },
   pointArrivee: {
+    nomDestinataire: { type: String, required: true, trim: true },
     adresse: { type: String, required: true, trim: true },
     telephoneContact: { type: String, required: true, trim: true },
     coordinates: { 
@@ -37,10 +40,6 @@ const livraisonSchema = new mongoose.Schema({
   prixEstime: { type: Number, required: true },
   prixFinal: { type: Number },
   modePaiement: { type: String, enum: ['cash', 'mobile_money', 'credit_illico'] },
-  
-  otpLivraison: { type: String, select: false },
-  otpRetrait: { type: String, select: false },
-  otpValidé: { type: Boolean, default: false },
   
   preuveLivraisonUrl: { type: String, default: '' },
   noteLivreur: { type: Number, min: 1, max: 5 },

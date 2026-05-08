@@ -25,7 +25,8 @@ const userSchema = new mongoose.Schema({
     sparse: true,
     lowercase: true,
     trim: true,
-    match: [/^\S+@\S+\.\S+$/, 'Email invalide']
+    match: [/^\S+@\S+\.\S+$/, 'Email invalide'],
+    set: v => v === '' ? undefined : v
   },
   motDePasse: { 
     type: String, 
@@ -64,6 +65,7 @@ const userSchema = new mongoose.Schema({
   
   // ==================== LIVREUR ====================
   vehicule: { type: mongoose.Schema.Types.ObjectId, ref: 'Vehicule' },
+  zonesDintervention: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Zone' }],
   statut: { 
     type: String, 
     enum: ['en_ligne', 'hors_ligne', 'en_mission'], 
