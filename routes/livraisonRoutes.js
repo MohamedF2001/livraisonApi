@@ -6,7 +6,7 @@ import {
   getLivraison,
   getAvailableLivraisons,
   selfAssignLivraison,
-  validateOTP,
+  trackLivraison,
   uploadPreuve,
   updateStatut,
   deleteLivraison,
@@ -27,6 +27,7 @@ const upload = multer({
 
 // 🔓 Public
 router.post('/estimation-prix', estimatePrice);
+router.get('/track/:code', trackLivraison);
 
 // ⚙️ Routes Communes (Filtrage géré dans le contrôleur)
 router.get('/', verifyToken, authorize('Admin', 'Client', 'Livreur', 'PointIllico'), getLivraisons);
@@ -44,7 +45,6 @@ router.post('/:id/preuve', verifyToken, verifyLivreur, upload.single('preuve'), 
 
 // 🔄 Mises à jour & Validation
 router.put('/:id/statut', verifyToken, authorize('Admin', 'Livreur'), updateStatut);
-router.post('/:id/valider-otp', verifyToken, authorize('Client', 'Livreur', 'PointIllico'), validateOTP);
 
 // 👨‍💼 Administration
 router.put('/:id/affecter', verifyToken, verifyAdmin, assignLivreur);

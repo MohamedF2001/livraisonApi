@@ -2,18 +2,12 @@
   "openapi": "3.0.0",
   "info": {
     "title": "ILLICO DELIVERY API",
-    "version": "1.0.0",
-    "description": "Plateforme de livraison express & points de collecte — Cotonou & Abomey-Calavi\n\n## 🎯 Fonctionnalités\n- Authentification multi-rôles (Admin, Client, Livreur, Point ILLICO)\n- Gestion des livraisons en temps réel\n- Points de collecte avec stockage temporaire\n- Calcul tarifaire dynamique\n- Paiements & commissions\n- Notifications push\n\n## 🔐 Authentification\nToutes les routes protégées nécessitent un token JWT dans le header :\n```\nAuthorization: Bearer <votre_token_jwt>\n```\n\n## 🌍 Base URL\n- Development: `http://localhost:3000/api`\n- Production: `https://illico-delivery.vercel.app/api`"
+    "version": "1.1.0",
+    "description": "Plateforme de livraison express & points de collecte — Cotonou & Abomey-Calavi\n\n## 🎯 Fonctionnalités\n- Authentification multi-rôles (Admin, Client, Livreur, Point ILLICO)\n- Gestion des livraisons en temps réel avec code de suivi unique\n- Attribution automatique par zone et véhicule\n- Points de collecte avec stockage temporaire\n- Calcul tarifaire dynamique\n- Paiements & commissions\n- Notifications push\n\n## 🔐 Authentification\nToutes les routes protégées nécessitent un token JWT dans le header :\n```\nAuthorization: Bearer <votre_token_jwt>\n```\n\n## 🌍 Base URL\n- Development: `http://localhost:3000/api`\n- Production: `https://illico-delivery.vercel.app/api`"
   },
   "servers": [
-    {
-      "url": "http://localhost:3000/api",
-      "description": "Development (Local)"
-    },
-    {
-      "url": "https://illico-delivery.vercel.app/api",
-      "description": "Production (Vercel)"
-    }
+    { "url": "http://localhost:3000/api", "description": "Development (Local)" },
+    { "url": "https://illico-delivery.vercel.app/api", "description": "Production (Vercel)" }
   ],
   "tags": [
     { "name": "🔐 Auth", "description": "Authentification & gestion de profil multi-rôles" },
@@ -53,6 +47,7 @@
           "soldeIllico": { "type": "number", "example": 15000, "nullable": true },
           "forfaitActif": { "type": "string", "nullable": true, "example": "65f2a1b2c3d4e5f6a7b8c9d1" },
           "vehicule": { "type": "object", "nullable": true, "example": { "_id": "65f2a1b2c3d4e5f6a7b8c9d2", "type": "moto", "tarifBase": 500 } },
+          "zonesDintervention": { "type": "array", "items": { "type": "string" }, "example": ["65f2a1b2c3d4e5f6a7b8c9c0"], "description": "Zones où le livreur peut intervenir (v1.1.0)" },
           "statut": { "type": "string", "enum": ["en_ligne", "hors_ligne", "en_mission"], "example": "en_ligne", "nullable": true },
           "scoreNote": { "type": "number", "minimum": 0, "maximum": 5, "example": 4.8, "nullable": true },
           "cashCollecte": { "type": "number", "example": 25000, "nullable": true },
@@ -75,9 +70,11 @@
           "_id": { "type": "string", "example": "65f2a1b2c3d4e5f6a7b8c9e0" },
           "client": { "$ref": "#/components/schemas/User" },
           "livreur": { "$ref": "#/components/schemas/User", "nullable": true },
+          "codeSuivi": { "type": "string", "example": "A1B2C", "description": "Code unique de suivi public (v1.1.0)" },
           "pointDepart": {
             "type": "object",
             "properties": {
+              "nomExpediteur": { "type": "string", "example": "M. Dupont", "description": "Nom de l'expéditeur (v1.1.0)" },
               "adresse": { "type": "string", "example": "Cotonou, Haie Vive" },
               "telephoneContact": { "type": "string", "example": "+22997000000" },
               "coordinates": { "type": "array", "items": { "type": "number" }, "example": [2.4394, 6.3654] }
@@ -86,6 +83,7 @@
           "pointArrivee": {
             "type": "object",
             "properties": {
+              "nomDestinataire": { "type": "string", "example": "Mme. Doe", "description": "Nom du destinataire (v1.1.0)" },
               "adresse": { "type": "string", "example": "Abomey-Calavi, Godomey" },
               "telephoneContact": { "type": "string", "example": "+22997000001" },
               "coordinates": { "type": "array", "items": { "type": "number" }, "example": [2.3558, 6.4478] }
@@ -98,9 +96,6 @@
           "prixEstime": { "type": "number", "example": 2500 },
           "prixFinal": { "type": "number", "nullable": true, "example": 2500 },
           "modePaiement": { "type": "string", "enum": ["cash", "mobile_money", "credit_illico"], "example": "cash" },
-          "otpLivraison": { "type": "string", "example": "123456", "writeOnly": true },
-          "otpRetrait": { "type": "string", "example": "789012", "writeOnly": true },
-          "otpValidé": { "type": "boolean", "example": false },
           "preuveLivraisonUrl": { "type": "string", "example": "https://res.cloudinary.com/.../proof.jpg", "nullable": true },
           "noteLivreur": { "type": "number", "minimum": 1, "maximum": 5, "nullable": true },
           "natureColis": { "type": "string", "example": "Documents importants" },
@@ -271,8 +266,9 @@
         "properties": {
           "pointDepart": {
             "type": "object",
-            "required": ["adresse", "coordinates", "telephoneContact"],
+            "required": ["adresse", "coordinates", "telephoneContact", "nomExpediteur"],
             "properties": {
+              "nomExpediteur": { "type": "string", "example": "M. Dupont", "description": "Nom de l'expéditeur (v1.1.0)" },
               "adresse": { "type": "string", "example": "Cotonou, Haie Vive, Rue 123" },
               "telephoneContact": { "type": "string", "example": "+22997000000" },
               "coordinates": { "type": "array", "items": { "type": "number" }, "example": [2.4394, 6.3654], "description": "[longitude, latitude]" }
@@ -280,8 +276,9 @@
           },
           "pointArrivee": {
             "type": "object",
-            "required": ["adresse", "coordinates", "telephoneContact"],
+            "required": ["adresse", "coordinates", "telephoneContact", "nomDestinataire"],
             "properties": {
+              "nomDestinataire": { "type": "string", "example": "Mme. Doe", "description": "Nom du destinataire (v1.1.0)" },
               "adresse": { "type": "string", "example": "Abomey-Calavi, Godomey, Carrefour" },
               "telephoneContact": { "type": "string", "example": "+22997000001" },
               "coordinates": { "type": "array", "items": { "type": "number" }, "example": [2.3558, 6.4478] }
@@ -440,7 +437,7 @@
                   "success": true,
                   "message": "Connexion réussie.",
                   "data": {
-                    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2NWYyYTFiMmMzZDRlNWY2YTdiOGM5ZDAiLCJyb2xlIjoiQWRtaW4iLCJpYXQiOjE3MTMxODcyMDB9.xYz...",
+                    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
                     "user": {
                       "_id": "65f2a1b2c3d4e5f6a7b8c9d0",
                       "nom": "Admin Principal",
@@ -749,7 +746,14 @@
                   "telephone": { "type": "string", "example": "+22997123456" },
                   "adresse": { "type": "string", "example": "Nouvelle Adresse" },
                   "email": { "type": "string", "format": "email", "example": "nouveau@email.com" },
-                  "typeClient": { "type": "string", "enum": ["standard", "professionnel"] }
+                  "typeClient": { "type": "string", "enum": ["standard", "professionnel"] },
+                  "zonesDintervention": { "type": "array", "items": { "type": "string" }, "description": "Zones d'intervention pour les livreurs (v1.1.0)" },
+                  "location": {
+                    "type": "object",
+                    "properties": {
+                      "coordinates": { "type": "array", "items": { "type": "number" }, "example": [2.43, 6.36], "description": "[longitude, latitude] (v1.1.0)" }
+                    }
+                  }
                 }
               }
             }
@@ -900,7 +904,7 @@
       "post": {
         "tags": ["📦 Livraisons"],
         "summary": "Créer une nouvelle livraison",
-        "description": "Réservé aux clients et admins. Crée une livraison et déclenche le dispatch automatique vers un livreur disponible.",
+        "description": "Réservé aux clients et admins. Crée une livraison avec code de suivi unique et déclenche le dispatch automatique vers un livreur disponible.",
         "requestBody": {
           "required": true,
           "content": {
@@ -922,7 +926,7 @@
                     "client": { "_id": "65f2a1b2c3d4e5f6a7b8c9d1", "nom": "Koffi Mensah", "telephone": "+22997123456" },
                     "statut": "en_attente",
                     "prixEstime": 2500,
-                    "otpLivraison": "123***"
+                    "codeSuivi": "A1B2C"
                   }
                 }
               }
@@ -939,6 +943,7 @@
         "parameters": [
           { "name": "statut", "in": "query", "schema": { "type": "string", "enum": ["en_attente", "affecté", "livré", "annulé"] } },
           { "name": "mode", "in": "query", "schema": { "type": "string", "enum": ["express", "point_illico"] } },
+          { "name": "codeSuivi", "in": "query", "schema": { "type": "string" }, "description": "Filtrer par code de suivi unique (v1.1.0)" },
           { "name": "limit", "in": "query", "schema": { "type": "integer", "example": 20 } },
           { "name": "page", "in": "query", "schema": { "type": "integer", "example": 1 } }
         ],
@@ -955,6 +960,46 @@
                     "data": { "type": "array", "items": { "$ref": "#/components/schemas/Livraison" } }
                   }
                 }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/livraisons/track/{code}": {
+      "get": {
+        "tags": ["📦 Livraisons"],
+        "summary": "Suivre une livraison via son code unique",
+        "description": "Endpoint PUBLIC permettant de suivre une livraison sans authentification via son code de suivi unique.",
+        "security": [],
+        "parameters": [
+          { "name": "code", "in": "path", "required": true, "schema": { "type": "string" }, "example": "A1B2C", "description": "Code de suivi unique de la livraison" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Informations de suivi récupérées",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": true,
+                  "message": "Suivi récupéré.",
+                  "data": {
+                    "codeSuivi": "A1B2C",
+                    "statut": "affecté",
+                    "pointDepart": { "adresse": "Cotonou, Haie Vive", "nomExpediteur": "M. Dupont" },
+                    "pointArrivee": { "adresse": "Abomey-Calavi, Godomey", "nomDestinataire": "Mme. Doe" },
+                    "dateCreation": "2026-04-15T10:30:00Z",
+                    "dateLivraison": null
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Code de suivi non trouvé",
+            "content": {
+              "application/json": {
+                "example": { "success": false, "message": "Aucune livraison trouvée avec ce code de suivi." }
               }
             }
           }
@@ -1351,69 +1396,69 @@
       }
     },
     "/vehicules": {
-  "get": {
-    "tags": ["🚗 Véhicules"],
-    "summary": "Lister les véhicules disponibles",
-    "security": [],
-    "parameters": [
-      { "name": "type", "in": "query", "schema": { "type": "string", "enum": ["velo", "moto", "tricycle", "voiture", "camionnette"] } },
-      { "name": "actif", "in": "query", "schema": { "type": "boolean" } }
-    ],
-    "responses": {
-      "200": {
-        "description": "Liste des véhicules",
-        "content": {
-          "application/json": {
-            "schema": {
-              "type": "object",
-              "properties": {
-                "success": { "type": "boolean" },
-                "data": { "type": "array", "items": { "$ref": "#/components/schemas/Vehicule" } }
+      "get": {
+        "tags": ["🚗 Véhicules"],
+        "summary": "Lister les véhicules disponibles",
+        "security": [],
+        "parameters": [
+          { "name": "type", "in": "query", "schema": { "type": "string", "enum": ["velo", "moto", "tricycle", "voiture", "camionnette"] } },
+          { "name": "actif", "in": "query", "schema": { "type": "boolean" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Liste des véhicules",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": { "type": "array", "items": { "$ref": "#/components/schemas/Vehicule" } }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["🚗 Véhicules", "👨‍💼 Admin"],
+        "summary": "Créer un nouveau véhicule",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["type", "tarifBase", "coutParKm", "commission"],
+                "properties": {
+                  "type": { "type": "string", "enum": ["velo", "moto", "tricycle", "voiture", "camionnette"], "example": "moto" },
+                  "tarifBase": { "type": "number", "example": 500, "minimum": 0 },
+                  "coutParKm": { "type": "number", "example": 150, "minimum": 0 },
+                  "commission": { "type": "number", "example": 20, "minimum": 0, "maximum": 100 },
+                  "description": { "type": "string", "example": "Idéal pour livraisons urbaines" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Véhicule créé",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": { "$ref": "#/components/schemas/Vehicule" }
+                  }
+                }
               }
             }
           }
         }
       }
-    }
-  },
-  "post": {
-    "tags": ["🚗 Véhicules", "👨‍💼 Admin"],
-    "summary": "Créer un nouveau véhicule",
-    "requestBody": {
-      "required": true,
-      "content": {
-        "application/json": {
-          "schema": {
-            "type": "object",
-            "required": ["type", "tarifBase", "coutParKm", "commission"],
-            "properties": {
-              "type": { "type": "string", "enum": ["velo", "moto", "tricycle", "voiture", "camionnette"], "example": "moto" },
-              "tarifBase": { "type": "number", "example": 500, "minimum": 0 },
-              "coutParKm": { "type": "number", "example": 150, "minimum": 0 },
-              "commission": { "type": "number", "example": 20, "minimum": 0, "maximum": 100 },
-              "description": { "type": "string", "example": "Idéal pour livraisons urbaines" }
-            }
-          }
-        }
-      }
-    },
-    "responses": {
-      "201": {
-        "description": "Véhicule créé",
-        "content": {
-          "application/json": {
-            "schema": {
-              "type": "object",
-              "properties": {
-                "success": { "type": "boolean" },
-                "data": { "$ref": "#/components/schemas/Vehicule" }
-              }
-            }
-          }
-        }
-      }
-    }
-  }
     },
     "/vehicules/{id}": {
       "get": {
